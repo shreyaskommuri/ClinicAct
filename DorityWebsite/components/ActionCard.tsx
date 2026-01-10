@@ -1,0 +1,1219 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Pill, Stethoscope, Image, FlaskConical, UserPlus, Calendar, FileText, AlertTriangle, CheckCircle2, Check, X, FileEdit, XCircle, Mail, Send, MapPin, Loader2 } from "lucide-react";
+import { useSession, type SuggestedAction } from "@/contexts/SessionContext";
+import QuestionnaireForm from "./QuestionnaireForm";
+import { calculateCompletionPercentage as calcCompletion } from "@/lib/completion-utils";
+
+interface ActionCardProps {
+  action: SuggestedAction;
+}
+
+// Use shared completion calculation utility
+// Kept as wrapper for backward compatibility
+function calculateCompletionPercentage(action: SuggestedAction, questionnaireDef?: any): number {
+  return calcCompletion(action, questionnaireDef);
+}
+
+// OLD IMPLEMENTATION - now using shared utility
+/*
+function calculateCompletionPercentageOld(action: SuggestedAction, questionnaireDef?: any): number {
+  // If scheduling, always 100% if essential fields exist
+  if (action.type === 'scheduling') return 100;
+
+  // If action has a QuestionnaireResponse, calculate based on filled REQUIRED items only
+  if (action.fhirPreview?.resourceType === 'QuestionnaireResponse' && action.fhirPreview?.item && Array.isArray(action.fhirPreview.item)) {
+    const items = action.fhirPreview.item;
+    
+    // Build a map of linkId -> required status from questionnaire definition
+    const requiredFields = new Set<string>();
+    if (questionnaireDef?.item) {
+      const findRequired = (qItems: any[]) => {
+        for (const qItem of qItems) {
+          if (qItem.required === true && qItem.linkId) {
+            requiredFields.add(qItem.linkId);
+          }
+          if (qItem.item && Array.isArray(qItem.item)) {
+            findRequired(qItem.item);
+          }
+        }
+      };
+      findRequired(questionnaireDef.item);
+    }
+    
+    // Recursively count ONLY REQUIRED items
+    const countItems = (itemList: any[]): { total: number; filled: number } => {
+      let total = 0;
+      let filled = 0;
+      
+      for (const item of itemList) {
+        // If it has nested items (group), recurse
+        if (item.item && Array.isArray(item.item)) {
+          const nested = countItems(item.item);
+          total += nested.total;
+          filled += nested.filled;
+        } else {
+          // Only count if this field is required
+          if (requiredFields.has(item.linkId)) {
+            total += 1;
+            
+            // Check if it has a meaningful answer
+            if (item.answer && item.answer.length > 0) {
+              const answer = item.answer[0];
+              
+              // Check for any type of meaningful value
+              const hasStringValue = answer.valueString && answer.valueString.trim() !== '' && answer.valueString !== 'N/A' && answer.valueString !== 'Unknown';
+              const hasBooleanValue = answer.valueBoolean !== undefined && answer.valueBoolean !== null;
+              const hasIntegerValue = answer.valueInteger !== undefined && answer.valueInteger !== null && !isNaN(answer.valueInteger);
+              const hasDecimalValue = answer.valueDecimal !== undefined && answer.valueDecimal !== null && !isNaN(answer.valueDecimal);
+              const hasDateValue = (answer.valueDate && answer.valueDate !== '') || (answer.valueDateTime && answer.valueDateTime !== '');
+              const hasCodingValue = answer.valueCoding && (answer.valueCoding.code || answer.valueCoding.display);
+              
+              const hasValue = hasStringValue || hasBooleanValue || hasIntegerValue || hasDecimalValue || hasDateValue || hasCodingValue;
+              
+              if (hasValue) {
+                filled += 1;
+              } else {
+                console.log(`[Completion] Empty required field: ${item.linkId}`, answer);
+              }
+            } else {
+              console.log(`[Completion] No answer for required field: ${item.linkId}`);
+            }
+          }
+        }
+      }
+      
+      return { total, filled };
+    };
+    
+    const counts = countItems(items);
+    console.log(`[Completion] Required fields: ${counts.total}, Filled: ${counts.filled}, Percentage: ${Math.round((counts.filled / counts.total) * 100)}%`);
+    console.log('[Completion] Required field linkIds:', Array.from(requiredFields));
+    
+    // If no required fields, check if ANY fields have values to show progress
+    if (counts.total === 0) {
+      // Count ALL fields (not just required) to see if anything is filled
+      let totalFields = 0;
+      let filledFields = 0;
+      
+      const countAllFields = (itemList: any[]) => {
+        for (const item of itemList) {
+          if (item.item && Array.isArray(item.item)) {
+            countAllFields(item.item);
+          } else if (item.linkId && !item.linkId.includes('display')) {
+            totalFields += 1;
+            if (item.answer && item.answer.length > 0) {
+              const answer = item.answer[0];
+              const hasValue = 
+                (answer.valueString && answer.valueString.trim() !== '' && answer.valueString !== 'N/A' && answer.valueString !== 'Unknown') ||
+                (answer.valueBoolean !== undefined && answer.valueBoolean !== null) ||
+                (answer.valueInteger !== undefined && answer.valueInteger !== null) ||
+                (answer.valueDecimal !== undefined && answer.valueDecimal !== null) ||
+                (answer.valueDate && answer.valueDate !== '') ||
+                (answer.valueCoding && answer.valueCoding.code);
+              if (hasValue) filledFields += 1;
+            }
+          }
+        }
+      };
+      
+      countAllFields(items);
+      console.log(`[Completion] No required fields - counting all fields: ${totalFields} total, ${filledFields} filled`);
+      
+      if (totalFields === 0) return 0; // If no fields at all, show 0% not 100%
+      return Math.round((filledFields / totalFields) * 100);
+    }
+    
+    return Math.round((counts.filled / counts.total) * 100);
+  }
+
+  // Fallback to basic field checking for non-questionnaire actions
+  const fields = [
+    action.title,
+    action.details,
+    action.rationale,
+    action.doseInfo,
+    action.pharmacy,
+    action.safetyFlag,
+  ];
+  const filledFields = fields.filter(f => f && f !== "").length;
+  return Math.round((filledFields / fields.length) * 100);
+}
+*/
+
+// Form field component for editable fields
+function FormField({ 
+  label, 
+  value, 
+  isItalic = false, 
+  isAlert = false,
+  isEditable = false,
+  onChange,
+  fieldType = 'text'
+}: { 
+  label: string; 
+  value: string; 
+  isItalic?: boolean;
+  isAlert?: boolean;
+  isEditable?: boolean;
+  onChange?: (value: string) => void;
+  fieldType?: 'text' | 'textarea' | 'select';
+}) {
+  if (isEditable) {
+    return (
+      <div className={`p-2.5 bg-white border border-zinc-200/50 rounded-lg ${isAlert ? 'border-amber-300 bg-amber-50/30' : ''}`}>
+        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">{label}</label>
+        {fieldType === 'textarea' ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange?.(e.target.value)}
+            className="w-full text-xs text-zinc-600 border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30 resize-none"
+            rows={2}
+          />
+        ) : (
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange?.(e.target.value)}
+            className="w-full text-xs text-zinc-600 border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30"
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`p-2.5 bg-white border border-zinc-200/50 rounded-lg ${isAlert ? 'border-amber-300 bg-amber-50/30' : ''}`}>
+      <label className="block text-xs font-semibold text-zinc-700 mb-1">{label}</label>
+      <p className={`text-xs text-zinc-600 ${isItalic ? 'italic' : ''} ${isAlert ? 'text-amber-900 font-medium' : ''}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+const TYPE_ICONS = {
+  medication: Pill,
+  imaging: Image,
+  lab: FlaskConical,
+  referral: UserPlus,
+  followup: Calendar,
+  aftercare: FileText,
+  scheduling: Mail,
+};
+
+const TYPE_COLORS = {
+  medication: "bg-blue-100 text-blue-600",
+  imaging: "bg-purple-100 text-purple-600",
+  lab: "bg-green-100 text-green-600",
+  referral: "bg-orange-100 text-orange-600",
+  followup: "bg-cyan-100 text-cyan-600",
+  aftercare: "bg-pink-100 text-pink-600",
+  scheduling: "bg-indigo-100 text-indigo-600",
+};
+
+const SAFETY_COLORS = {
+  high: "bg-red-100 text-red-700 border-red-200/50",
+  medium: "bg-amber-100 text-amber-700 border-amber-200/50",
+  low: "bg-emerald-100 text-emerald-700 border-emerald-200/50",
+};
+
+export default function ActionCard({ action }: ActionCardProps) {
+  const { updateActionStatus, updateAction, patient } = useSession();
+  const [showForm, setShowForm] = useState(false);
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [isEditingForm, setIsEditingForm] = useState(false);
+  const [questionnaireDef, setQuestionnaireDef] = useState<any>(null);
+  const [practitioners, setPractitioners] = useState<any[]>([]);
+  const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
+  const [showPractitionerSearch, setShowPractitionerSearch] = useState(false);
+
+  // Helper to search for practitioners
+  const searchPractitioners = async () => {
+    setIsLoadingPractitioners(true);
+    setShowPractitionerSearch(true);
+    try {
+      // Try to parse city/state from patient address
+      // Format assumption: "123 Main St, City, State Zip"
+      let city = '';
+      let state = '';
+      
+      if (patient?.address) {
+        const parts = patient.address.split(',');
+        if (parts.length >= 2) {
+          // Last part usually has State Zip
+          const stateZip = parts[parts.length - 1].trim().split(' ');
+          if (stateZip.length >= 1) {
+            state = stateZip[0];
+          }
+          // Second to last is usually City
+          city = parts[parts.length - 2].trim();
+        }
+      }
+
+      const params = new URLSearchParams();
+      if (city) params.append('city', city);
+      if (state) params.append('state', state);
+      
+      // Use action title for specialty, cleaning up common words
+      const specialty = action.title
+        .replace(/Referral|Consult|Request|Order/gi, '')
+        .trim();
+      if (specialty) params.append('specialty', specialty);
+      
+      params.append('limit', '5');
+
+      const response = await fetch(`/api/find-practitioners?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.results) {
+        setPractitioners(data.results);
+      } else {
+        setPractitioners([]);
+      }
+    } catch (error) {
+      console.error("Failed to search practitioners", error);
+    } finally {
+      setIsLoadingPractitioners(false);
+    }
+  };
+
+  // Fetch questionnaire definition to know which fields are required
+  useEffect(() => {
+    if (action.questionnaireId) {
+      fetch(`/api/questionnaire/${action.questionnaireId}`)
+        .then(res => res.json())
+        .then(data => setQuestionnaireDef(data.questionnaire))
+        .catch(err => console.error('Failed to load questionnaire def:', err));
+    }
+  }, [action.questionnaireId]);
+  
+  // Helpers for building/augmenting scheduling email body
+  const buildDefaultEmailBody = (act: any) => {
+    const reason = act.reason || act.rationale || '';
+    const when = act.when || 'As soon as possible';
+    const insurance = patient?.insurance ?? 'Not provided';
+    const practitioner = patient?.generalPractitioner ?? 'Not provided';
+    const practitionerAddress = patient?.organizationAddress ?? 'Not provided';
+
+    return `Hi,\n\nWe would like to schedule a follow-up meeting.\n\nReason: ${reason}\nSuggested Time: ${when}\n\nInsurance: ${insurance}\nPractitioner: ${practitioner}\nPractitioner Address: ${practitionerAddress}\n\nBest regards,\nClinical Team`;
+  };
+
+  const augmentBody = (body: string | undefined, act: any) => {
+    const insurance = patient?.insurance ?? 'Not provided';
+    const practitioner = patient?.generalPractitioner ?? 'Not provided';
+    const practitionerAddress = patient?.organizationAddress ?? 'Not provided';
+
+    if (!body || body.trim() === '') return buildDefaultEmailBody(act);
+
+    const lower = body.toLowerCase();
+    let augmented = body;
+    if (!lower.includes('insurance:')) {
+      augmented += `\n\nInsurance: ${insurance}`;
+    }
+    if (!lower.includes('practitioner:')) {
+      augmented += `\nPractitioner: ${practitioner}`;
+    }
+    if (!lower.includes('practitioner address:') && !lower.includes('practice address:')) {
+      augmented += `\nPractitioner Address: ${practitionerAddress}`;
+    }
+
+    return augmented;
+  };
+
+  // Initialize form data, including default email for scheduling
+  const [formData, setFormData] = useState<any>(() => {
+    if (action.type === 'scheduling') {
+      return {
+        ...action.fhirPreview,
+        email: action.email || 'adarsh.danda1@gmail.com',
+        subject: action.subject || (action.title ? `Follow-up: ${action.title}` : 'Follow-up Email'),
+        body: action.body ? augmentBody(action.body, action) : buildDefaultEmailBody(action),
+      };
+    }
+    return action.fhirPreview;
+  });
+
+  const handleApprove = () => {
+    // If scheduling, save the current formData (with edited email) before approving
+    if (action.type === 'scheduling') {
+      updateAction(action.id, {
+        email: formData.email,
+        subject: formData.subject,
+        body: formData.body,
+        // backend 'apply-actions' will use action.email, action.subject, action.body if present
+        ...formData
+      });
+    }
+    updateActionStatus(action.id, "approved");
+  };
+
+  const handleReject = () => {
+    updateActionStatus(action.id, "rejected");
+  };
+
+  const handleSaveForm = () => {
+    updateAction(action.id, { 
+      fhirPreview: formData, // Keep fhirPreview updated
+      // For scheduling, we also update top-level props if changed
+      ...(action.type === 'scheduling' ? {
+        email: formData.email,
+        subject: formData.subject,
+        body: formData.body,
+      } : {})
+    });
+    setIsEditingForm(false);
+    setShowFormModal(false);
+  };
+
+  const handleOpenFormModal = () => {
+    setShowFormModal(true);
+    setIsEditingForm(true);
+  };
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (showFormModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showFormModal]);
+
+  const Icon = TYPE_ICONS[action.type] || FileText;
+  const isApproved = action.status === "approved";
+  const isRejected = action.status === "rejected";
+  const completionPercentage = calculateCompletionPercentage(action);
+
+  if (isRejected) {
+    return (
+      <div className="bg-zinc-50 border border-zinc-200/70 rounded-2xl shadow-sm opacity-60">
+        <div className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-zinc-200 text-zinc-400">
+            <Icon className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-zinc-500 line-through truncate">
+                {action.title}
+              </h3>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-200 text-zinc-600 text-xs font-semibold rounded-full">
+                <X className="w-3 h-3" />
+                Rejected
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+    <div
+      className={`group bg-white border border-zinc-200/70 rounded-2xl shadow-sm transition-all hover:shadow-md ${
+        isApproved ? "bg-gradient-to-r from-emerald-50/30 to-white border-emerald-300" : "hover:-translate-y-0.5"
+      }`}
+    >
+      <div className="p-4 flex items-start gap-4">
+        {/* Left: Icon */}
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+            isApproved ? "bg-emerald-100 text-emerald-600" : TYPE_COLORS[action.type]
+          }`}
+        >
+          <Icon className="w-5 h-5" />
+        </div>
+
+        {/* Middle: Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-sm font-semibold text-zinc-900">
+                  {action.title}
+                </h3>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 border border-zinc-200/50 capitalize">
+                  {action.type}
+                </span>
+                {isApproved && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200/50">
+                    <Check className="w-3 h-3" />
+                    {action.type === 'scheduling' ? 'Sent' : 'Approved'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mb-1">
+                <p className="text-xs text-zinc-600">
+                  {action.details}
+                </p>
+              </div>
+              {/* Questionnaire Form Indicator */}
+              {action.questionnaireName && (
+                <div className="flex items-center gap-1.5 mt-1.5 text-xs">
+                  <FileText className="w-3 h-3 text-zinc-400" />
+                  <span className="text-zinc-500">
+                    Using form: <span className="font-medium text-zinc-700">{action.questionnaireName}</span>
+                  </span>
+                </div>
+              )}
+              {/* Completion Progress Bar */}
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex-1 bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 ${
+                      completionPercentage === 100 ? 'bg-emerald-500' : 
+                      completionPercentage >= 75 ? 'bg-blue-500' : 
+                      completionPercentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${completionPercentage}%` }}
+                  />
+                </div>
+                <span className="text-xs font-medium text-zinc-600 tabular-nums">
+                  {completionPercentage}%
+                </span>
+              </div>
+              {action.doseInfo && (
+                <p className="text-xs text-zinc-500 mt-2">
+                  <span className="font-semibold">Dose:</span> {action.doseInfo}
+                </p>
+              )}
+              {action.pharmacy && (
+                <p className="text-xs text-zinc-500 mt-1">
+                  <span className="font-semibold">Pharmacy:</span> {action.pharmacy}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Rationale */}
+          {action.rationale && (
+            <div className="text-xs text-zinc-500 italic mt-2 pl-3 border-l-2 border-zinc-200">
+              "{action.rationale}"
+            </div>
+          )}
+
+          {/* Safety Flag */}
+          {action.safetyFlag && action.safetyMessage && (
+            <div className={`mt-3 px-3 py-2 rounded-lg text-xs flex items-start gap-2 ${SAFETY_COLORS[action.safetyFlag]}`}>
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span className="font-medium">{action.safetyMessage}</span>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 mt-4">
+            {/* View/Edit buttons for non-scheduling actions */}
+            {action.type !== 'scheduling' && (
+                <>
+                    <button
+                    onClick={() => setShowForm(!showForm)}
+                    className="px-3 py-1.5 text-xs font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100/80 rounded-lg transition-all border border-zinc-200/70 flex items-center gap-1.5"
+                    >
+                    <FileEdit className="w-3.5 h-3.5" />
+                    {showForm ? "Hide" : "View"} Form
+                    </button>
+                    <button
+                    onClick={handleOpenFormModal}
+                    className="px-3 py-1.5 text-xs font-medium text-[#7C2D3E] hover:text-white hover:bg-[#7C2D3E] rounded-lg transition-all border border-[#7C2D3E] flex items-center gap-1.5"
+                    >
+                    <FileEdit className="w-3.5 h-3.5" />
+                    Edit Form
+                    </button>
+                </>
+            )}
+            
+            {!isApproved && (
+              <>
+                <button
+                  onClick={handleReject}
+                  className="px-3 py-1.5 text-xs font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100/80 rounded-lg transition-all border border-zinc-200/70"
+                >
+                  Reject
+                </button>
+                {/* Send button for Scheduling, Approve & Sign for others */}
+                {action.type === 'scheduling' ? (
+                    <button
+                        onClick={handleApprove}
+                        disabled={completionPercentage < 100}
+                        className={`px-4 py-1.5 text-xs font-semibold rounded-full shadow-sm transition-all flex items-center gap-1.5 ${
+                          completionPercentage < 100
+                            ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
+                            : 'text-white bg-[#7C2D3E] hover:bg-[#5A1F2D]'
+                        }`}
+                        title={completionPercentage < 100 ? 'Complete all required fields to approve' : ''}
+                    >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Approve
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleApprove}
+                        disabled={completionPercentage < 100}
+                        className={`px-4 py-1.5 text-xs font-semibold rounded-full shadow-sm transition-all flex items-center gap-1.5 ${
+                          completionPercentage < 100
+                            ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
+                            : 'text-white bg-[#7C2D3E] hover:bg-[#5A1F2D]'
+                        }`}
+                        title={completionPercentage < 100 ? 'Complete all required fields to approve' : ''}
+                    >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Approve & Sign
+                    </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Form Details (Expandable) - Read Only Preview */}
+          {showForm && (
+            <div className="mt-4 p-4 bg-zinc-50/50 border border-zinc-200/70 rounded-xl space-y-4">
+              {/* If questionnaire exists, use dynamic form */}
+              {action.questionnaireId ? (
+                <>
+                  {console.log('[ActionCard] Rendering QuestionnaireForm with fhirPreview:', action.fhirPreview)}
+                  <QuestionnaireForm 
+                    questionnaireId={action.questionnaireId}
+                    isEditable={false}
+                    initialResponses={{}}
+                    fhirResource={action.fhirPreview}
+                    patientData={patient}
+                  />
+                </>
+              ) : (
+                <>
+                  <h4 className="text-sm font-semibold text-zinc-900 mb-3 flex items-center gap-2">
+                    {action.type === 'scheduling' ? (
+                        <>
+                            <Mail className="w-4 h-4" />
+                            Email Draft
+                        </>
+                    ) : (
+                        <>
+                            <FileText className="w-4 h-4" />
+                            {action.type === 'medication' && 'Medication Order Form'}
+                            {action.type === 'imaging' && 'Imaging Request Form'}
+                            {action.type === 'lab' && 'Laboratory Order Form'}
+                            {action.type === 'referral' && 'Referral Form'}
+                            {action.type === 'followup' && 'Follow-up Appointment Form'}
+                            {action.type === 'aftercare' && 'After-care Instructions Form'}
+                        </>
+                    )}
+                  </h4>
+
+              {/* Scheduling-specific fields */}
+              {action.type === 'scheduling' && (
+                <div className="space-y-3">
+                  <FormField label="To" value={formData.email || 'adarsh.danda1@gmail.com'} />
+                  <FormField label="Subject" value={formData.subject || action.subject || `Follow-up: ${action.title}`} />
+                  <FormField label="Message" value={formData.body || action.body} isItalic fieldType="textarea" />
+                </div>
+              )}
+
+                  {/* Medication-specific fields */}
+                  {action.type === 'medication' && (
+                <div className="space-y-3">
+                  <FormField 
+                    label="Medication Name *" 
+                    value={formData.medicationCodeableConcept?.text || action.title} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="RxNorm Code" 
+                    value={formData.medicationCodeableConcept?.coding?.[0]?.code || 'Not specified'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Dosage & Instructions *" 
+                    value={formData.dosageInstruction?.[0]?.text || action.doseInfo || 'Not specified'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Route of Administration" 
+                    value={formData.dosageInstruction?.[0]?.route?.text || 'Oral'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Dose Quantity" 
+                    value={formData.dosageInstruction?.[0]?.doseAndRate?.[0]?.doseQuantity?.value 
+                      ? `${formData.dosageInstruction[0].doseAndRate[0].doseQuantity.value} ${formData.dosageInstruction[0].doseAndRate[0].doseQuantity.unit || 'mg'}`
+                      : 'See instructions'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Frequency" 
+                    value={formData.dosageInstruction?.[0]?.timing?.repeat?.frequency 
+                      ? `${formData.dosageInstruction[0].timing.repeat.frequency}x per ${formData.dosageInstruction[0].timing.repeat.periodUnit || 'day'}`
+                      : 'As directed'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Dispense Quantity" 
+                    value={formData.dispenseRequest?.quantity?.value || '30-day supply'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Number of Refills" 
+                    value={formData.dispenseRequest?.numberOfRepeatsAllowed?.toString() || '3'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Preferred Pharmacy" 
+                    value={action.pharmacy || 'Patient\'s preferred pharmacy'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Substitution Permitted" 
+                    value={formData.substitution?.allowedBoolean !== false ? 'Yes (generic permitted)' : 'No (dispense as written)'} 
+                    isEditable={isEditingForm}
+                  />
+                  <FormField 
+                    label="Clinical Indication" 
+                    value={formData.reasonCode?.[0]?.text || action.rationale} 
+                    isItalic 
+                    isEditable={isEditingForm}
+                    fieldType="textarea"
+                  />
+                  {action.safetyFlag && (
+                    <FormField 
+                      label="Safety Alert" 
+                      value={action.safetyMessage || ''} 
+                      isAlert 
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Imaging-specific fields */}
+              {action.type === 'imaging' && (
+                <div className="space-y-3">
+                  <FormField 
+                    label="Imaging Study *" 
+                    value={formData.code?.text || action.title} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="LOINC Code" 
+                    value={formData.code?.coding?.[0]?.code || 'Not specified'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Body Site / Region *" 
+                    value={formData.bodySite?.[0]?.text || action.details} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Priority *" 
+                    value={formData.priority || (action.title.includes('STAT') ? 'stat' : 'routine')} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Clinical Indication *" 
+                    value={formData.reasonCode?.[0]?.text || action.rationale} 
+                    isItalic 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Relevant Clinical History" 
+                    value={formData.supportingInfo || 'See patient chart for complete history'} 
+                    isEditable={false}
+                  />
+                  <FormField 
+                    label="Special Instructions" 
+                    value={formData.patientInstruction || 'Patient should arrive 30 minutes early'} 
+                    isEditable={false}
+                  />
+                  {action.safetyFlag && (
+                    <FormField 
+                      label="Safety Considerations" 
+                      value={action.safetyMessage || ''} 
+                      isAlert 
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Lab-specific fields */}
+              {action.type === 'lab' && (
+                <div className="space-y-3">
+                  <FormField label="Test Name" value={action.title} />
+                  <FormField label="Clinical Indication" value={action.details} />
+                  <FormField label="Priority" value="Routine" />
+                  <FormField label="Specimen Type" value="Blood/Serum" />
+                  <FormField label="Collection Method" value="Venipuncture" />
+                  <FormField label="Fasting Required" value="No (unless otherwise noted)" />
+                  <FormField label="Special Handling" value="Standard processing" />
+                  <FormField label="Expected Results Timeline" value="3-5 business days" />
+                  <FormField label="Clinical Rationale" value={action.rationale} isItalic />
+                  <FormField label="Notify Provider When" value="Results available" />
+                </div>
+              )}
+
+              {/* Referral-specific fields */}
+              {action.type === 'referral' && (
+                <div className="space-y-3">
+                  <FormField label="Specialty / Service" value={action.title} />
+                  <FormField label="Reason for Referral" value={action.details} />
+                  <FormField label="Urgency" value="Routine (within 2-4 weeks)" />
+                  <FormField 
+                    label="Specific Provider Requested" 
+                    value={formData.performer?.display || "No preference"} 
+                    isItalic={!!formData.performer?.display}
+                  />
+                  <FormField label="Clinical Summary" value={action.rationale} isItalic />
+                  <FormField label="Relevant Diagnoses" value="See patient problem list" />
+                  <FormField label="Current Medications" value="See current medication list" />
+                  <FormField label="Tests to Send" value="Include recent lab results and imaging" />
+                  <FormField label="Expected Consultation Type" value="Initial consultation" />
+                  <FormField label="Insurance Authorization" value="May be required - check with patient's plan" />
+                </div>
+              )}
+
+              {/* Follow-up-specific fields */}
+              {action.type === 'followup' && (
+                <div className="space-y-3">
+                  <FormField label="Appointment Type" value={action.title} />
+                  <FormField label="Reason for Visit" value={action.details} />
+                  <FormField label="Timeframe" value={action.title.includes('1 week') ? '1 week' : action.title.includes('2 weeks') ? '2 weeks' : '1 month'} />
+                  <FormField label="Visit Duration" value="30 minutes" />
+                  <FormField label="Provider" value="Same provider" />
+                  <FormField label="Clinical Notes" value={action.rationale} isItalic />
+                  <FormField label="Items to Review" value="Symptom progression, treatment response" />
+                  <FormField label="Tests Before Visit" value="None required (unless clinically indicated)" />
+                </div>
+              )}
+
+              {/* After-care-specific fields */}
+              {action.type === 'aftercare' && (
+                <div className="space-y-3">
+                  <FormField label="Instruction Type" value={action.title} />
+                  <FormField label="Summary" value={action.details} />
+                  <FormField label="Clinical Context" value={action.rationale} isItalic />
+                  <FormField label="Delivery Method" value="Email and printed handout" />
+                  <FormField label="Language" value="English (translate as needed)" />
+                  <FormField label="Follow-up Contact" value="Patient may call with questions" />
+                </div>
+              )}
+
+              {/* FHIR Resource Info */}
+              {!action.questionnaireId && (
+                <div className="mt-4 pt-4 border-t border-zinc-200/70">
+                  <h5 className="text-xs font-semibold text-zinc-700 mb-2">FHIR Resource Details</h5>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-start gap-2">
+                      <span className="font-semibold text-zinc-600 min-w-[120px]">Resource Type:</span>
+                      <span className="text-zinc-500">{action.fhirPreview.resourceType}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-semibold text-zinc-600 min-w-[120px]">Status:</span>
+                      <span className="text-zinc-500">{action.fhirPreview.status}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+      {/* Form Edit Modal - Render outside card */}
+      {showFormModal && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          style={{ pointerEvents: 'auto' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowFormModal(false);
+              setIsEditingForm(false);
+              // Reset form data if cancelling? Or keep edits? 
+              // Usually cancel discards edits, but here we just close.
+              // Let's keep it simple and just close.
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between bg-gradient-to-r from-[#F7F1EC] to-white">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${TYPE_COLORS[action.type]}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-900">
+                    {action.type === 'medication' && 'Edit Medication Order'}
+                    {action.type === 'imaging' && 'Edit Imaging Request'}
+                    {action.type === 'lab' && 'Edit Laboratory Order'}
+                    {action.type === 'referral' && 'Edit Referral'}
+                    {action.type === 'followup' && 'Edit Follow-up Appointment'}
+                    {action.type === 'aftercare' && 'Edit After-care Instructions'}
+                    {action.type === 'scheduling' && 'Edit Email Draft'}
+                  </h3>
+                  <p className="text-xs text-zinc-600 mt-0.5">{action.title}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowFormModal(false);
+                  setIsEditingForm(false);
+                  // setFormData(action.fhirPreview); // reset to original
+                }}
+                className="p-2 hover:bg-zinc-100 rounded-lg transition-colors"
+              >
+                <XCircle className="w-5 h-5 text-zinc-500" />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable Form */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {/* Use dynamic questionnaire if available */}
+                {action.questionnaireId ? (
+                  <QuestionnaireForm 
+                    questionnaireId={action.questionnaireId}
+                    isEditable={true}
+                    initialResponses={{}}
+                    fhirResource={action.fhirPreview}
+                    patientData={patient}
+                    onResponseChange={(responses) => {
+                      console.log('Questionnaire responses changed:', responses);
+                      
+                      // Helper to update items recursively
+                      const updateItems = (items: any[]): any[] => {
+                        return items.map(item => {
+                          if (item.item && Array.isArray(item.item)) {
+                            // It's a group - recurse into nested items
+                            return {
+                              ...item,
+                              item: updateItems(item.item)
+                            };
+                          } else {
+                            // It's a question - update the answer if we have a response
+                            const linkId = item.linkId;
+                            if (responses.hasOwnProperty(linkId)) {
+                              const value = responses[linkId];
+                              let answer;
+                              
+                              if (typeof value === 'boolean') {
+                                answer = [{ valueBoolean: value }];
+                              } else if (typeof value === 'number') {
+                                answer = [{ valueInteger: value }];
+                              } else if (value && typeof value === 'object' && value.code) {
+                                answer = [{ valueCoding: value }];
+                              } else {
+                                answer = [{ valueString: value }];
+                              }
+                              
+                              return {
+                                ...item,
+                                answer
+                              };
+                            }
+                            return item;
+                          }
+                        });
+                      };
+                      
+                      // Update the fhirPreview with modified items
+                      const updatedFhirPreview = {
+                        ...action.fhirPreview,
+                        item: Array.isArray(action.fhirPreview?.item) ? updateItems(action.fhirPreview.item) : []
+                      };
+                      
+                      // Update the action in the session context
+                      updateAction(action.id, {
+                        fhirPreview: updatedFhirPreview
+                      });
+                      
+                      // Also update local form data
+                      setFormData(updatedFhirPreview);
+                    }}
+                  />
+                ) : (
+                  <>
+                    {/* Scheduling Form */}
+                    {action.type === 'scheduling' && (
+                        <div className="space-y-3">
+                            <FormField 
+                                label="To *" 
+                                value={formData.email} 
+                                isEditable={true}
+                                onChange={(val) => setFormData({...formData, email: val})}
+                            />
+                            <FormField 
+                                label="Subject *" 
+                                value={formData.subject} 
+                                isEditable={true}
+                                onChange={(val) => setFormData({...formData, subject: val})}
+                            />
+                            <FormField 
+                                label="Message *" 
+                                value={formData.body} 
+                                isEditable={true}
+                                fieldType="textarea"
+                                onChange={(val) => setFormData({...formData, body: val})}
+                            />
+                        </div>
+                    )}
+
+                    {/* Medication Form */}
+                    {action.type === 'medication' && (
+                  <div className="space-y-3">
+                    <FormField 
+                      label="Medication Name *" 
+                      value={formData.medicationCodeableConcept?.text || action.title} 
+                      isEditable={true}
+                      onChange={(val) => setFormData({...formData, medicationCodeableConcept: {...formData.medicationCodeableConcept, text: val}})}
+                    />
+                    <FormField 
+                      label="RxNorm Code" 
+                      value={formData.medicationCodeableConcept?.coding?.[0]?.code || 'Not specified'} 
+                      isEditable={true}
+                      onChange={(val) => setFormData({
+                        ...formData, 
+                        medicationCodeableConcept: {
+                          ...formData.medicationCodeableConcept,
+                          coding: [{...formData.medicationCodeableConcept?.coding?.[0], code: val}]
+                        }
+                      })}
+                    />
+                    <FormField 
+                      label="Dosage & Instructions *" 
+                      value={formData.dosageInstruction?.[0]?.text || action.doseInfo || 'Not specified'} 
+                      isEditable={true}
+                      fieldType="textarea"
+                      onChange={(val) => setFormData({
+                        ...formData,
+                        dosageInstruction: [{...formData.dosageInstruction?.[0], text: val}]
+                      })}
+                    />
+                    <FormField 
+                      label="Route of Administration" 
+                      value={formData.dosageInstruction?.[0]?.route?.text || 'Oral'} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Dose Quantity" 
+                      value={formData.dosageInstruction?.[0]?.doseAndRate?.[0]?.doseQuantity?.value 
+                        ? `${formData.dosageInstruction[0].doseAndRate[0].doseQuantity.value} ${formData.dosageInstruction[0].doseAndRate[0].doseQuantity.unit || 'mg'}`
+                        : 'See instructions'} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Dispense Quantity" 
+                      value={formData.dispenseRequest?.quantity?.value || '30-day supply'} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Number of Refills" 
+                      value={formData.dispenseRequest?.numberOfRepeatsAllowed?.toString() || '3'} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Preferred Pharmacy" 
+                      value={action.pharmacy || 'Patient\'s preferred pharmacy'} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Clinical Indication" 
+                      value={formData.reasonCode?.[0]?.text || action.rationale} 
+                      isItalic 
+                      isEditable={true}
+                      fieldType="textarea"
+                    />
+                    {action.safetyFlag && (
+                      <FormField 
+                        label="Safety Alert" 
+                        value={action.safetyMessage || ''} 
+                        isAlert 
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Imaging Form */}
+                {action.type === 'imaging' && (
+                  <div className="space-y-3">
+                    <FormField 
+                      label="Imaging Study *" 
+                      value={formData.code?.text || action.title} 
+                      isEditable={true}
+                      onChange={(val) => setFormData({...formData, code: {...formData.code, text: val}})}
+                    />
+                    <FormField 
+                      label="LOINC Code" 
+                      value={formData.code?.coding?.[0]?.code || 'Not specified'} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Body Site / Region *" 
+                      value={formData.bodySite?.[0]?.text || action.details} 
+                      isEditable={true}
+                      onChange={(val) => setFormData({...formData, bodySite: [{text: val}]})}
+                    />
+                    <FormField 
+                      label="Priority *" 
+                      value={formData.priority || (action.title.includes('STAT') ? 'stat' : 'routine')} 
+                      isEditable={true}
+                    />
+                    <FormField 
+                      label="Clinical Indication *" 
+                      value={formData.reasonCode?.[0]?.text || action.rationale} 
+                      isItalic 
+                      isEditable={true}
+                      fieldType="textarea"
+                    />
+                    <FormField 
+                      label="Relevant Clinical History" 
+                      value={formData.supportingInfo || 'See patient chart for complete history'} 
+                      isEditable={true}
+                      fieldType="textarea"
+                    />
+                    <FormField 
+                      label="Special Instructions" 
+                      value={formData.patientInstruction || 'Patient should arrive 30 minutes early'} 
+                      isEditable={true}
+                      fieldType="textarea"
+                    />
+                    {action.safetyFlag && (
+                      <FormField 
+                        label="Safety Considerations" 
+                        value={action.safetyMessage || ''} 
+                        isAlert 
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Lab Form */}
+                {action.type === 'lab' && (
+                  <div className="space-y-3">
+                    <FormField label="Test Name" value={action.title} isEditable={true} />
+                    <FormField label="Clinical Indication" value={action.details} isEditable={true} fieldType="textarea" />
+                    <FormField label="Priority" value="Routine" isEditable={true} />
+                    <FormField label="Specimen Type" value="Blood/Serum" isEditable={true} />
+                    <FormField label="Clinical Rationale" value={action.rationale} isItalic isEditable={true} fieldType="textarea" />
+                  </div>
+                )}
+
+                {/* Referral Form */}
+                {action.type === 'referral' && (
+                  <div className="space-y-3">
+                    <FormField label="Specialty / Service" value={action.title} isEditable={true} />
+                    <FormField label="Reason for Referral" value={action.details} isEditable={true} fieldType="textarea" />
+                    
+                    {/* Provider Search */}
+                    <div className="p-2.5 bg-white border border-zinc-200/50 rounded-lg">
+                      <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Specific Provider Requested</label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={formData.performer?.display || ''}
+                          onChange={(e) => setFormData({...formData, performer: { display: e.target.value, reference: null }})}
+                          placeholder="No preference"
+                          className="flex-1 text-xs text-zinc-600 border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30"
+                        />
+                        <button
+                          onClick={searchPractitioners}
+                          disabled={isLoadingPractitioners}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-[#7C2D3E] hover:bg-[#5A1F2D] rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isLoadingPractitioners ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                          Find Local
+                        </button>
+                      </div>
+                      
+                      {/* Search Results */}
+                      {showPractitionerSearch && practitioners.length > 0 && (
+                        <div className="mt-2 border border-zinc-200 rounded-lg overflow-hidden max-h-40 overflow-y-auto bg-zinc-50/50">
+                          {practitioners.map((p, i) => (
+                            <div 
+                              key={i}
+                              onClick={() => {
+                                const name = `${p.basic.name_prefix || ''} ${p.basic.first_name} ${p.basic.last_name} ${p.basic.credential || ''}`.trim();
+                                const address = p.addresses[0] ? `${p.addresses[0].address_1}, ${p.addresses[0].city}, ${p.addresses[0].state}` : '';
+                                setFormData({
+                                  ...formData, 
+                                  performer: { 
+                                    display: `${name} - ${address}`,
+                                    reference: `Practitioner/${p.number}` // NPI number
+                                  }
+                                });
+                                setShowPractitionerSearch(false);
+                              }}
+                              className="p-2.5 hover:bg-white hover:shadow-sm cursor-pointer border-b border-zinc-100 last:border-0 text-xs transition-all"
+                            >
+                              <div className="font-medium text-zinc-900">
+                                {p.basic.name_prefix} {p.basic.first_name} {p.basic.last_name} {p.basic.credential}
+                              </div>
+                              <div className="text-zinc-500 truncate mt-0.5">
+                                {p.taxonomies?.[0]?.desc} • {p.addresses?.[0]?.city}, {p.addresses?.[0]?.state}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {showPractitionerSearch && practitioners.length === 0 && !isLoadingPractitioners && (
+                         <div className="mt-2 text-xs text-zinc-500 italic p-2">
+                           No local practitioners found for this specialty.
+                         </div>
+                      )}
+                    </div>
+
+                    <FormField label="Urgency" value="Routine (within 2-4 weeks)" isEditable={true} />
+                    <FormField label="Clinical Summary" value={action.rationale} isItalic isEditable={true} fieldType="textarea" />
+                  </div>
+                )}
+
+                {/* Follow-up Form */}
+                {action.type === 'followup' && (
+                  <div className="space-y-3">
+                    <FormField label="Appointment Type" value={action.title} isEditable={true} />
+                    <FormField label="Reason for Visit" value={action.details} isEditable={true} fieldType="textarea" />
+                    <FormField label="Timeframe" value={action.title.includes('1 week') ? '1 week' : action.title.includes('2 weeks') ? '2 weeks' : '1 month'} isEditable={true} />
+                    <FormField label="Clinical Notes" value={action.rationale} isItalic isEditable={true} fieldType="textarea" />
+                  </div>
+                )}
+                </>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-zinc-200 flex items-center justify-between bg-zinc-50">
+              <p className="text-xs text-zinc-500">Fields marked with * are required</p>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    setShowFormModal(false);
+                    setIsEditingForm(false);
+                    // setFormData(action.fhirPreview);
+                  }}
+                  className="px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-200 rounded-lg transition-all border border-zinc-300"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSaveForm}
+                  className="px-6 py-2 text-xs font-semibold text-white bg-[#7C2D3E] hover:bg-[#5A1F2D] rounded-lg transition-all shadow-sm flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
