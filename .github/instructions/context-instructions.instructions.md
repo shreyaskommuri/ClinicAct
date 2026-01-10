@@ -7,7 +7,7 @@ We are building a "Sidecar" Web App (Next.js) that automates clinical data entry
 - **Frontend:** Next.js 14+ (App Router), React, Tailwind CSS, Lucide React (Icons).
 - **Backend:** Medplum (Headless FHIR Server).
 - **AI:** Claude 3.5 Sonnet (via Anthropic SDK).
-- **Inputs:** Heidi API (Transcripts).
+- **Inputs:** Transcription APIs (Audio/Text Transcripts).
 
 ## Core Architecture
 1. **SMART on FHIR:** The app is designed to be interoperable. It talks to Medplum via the FHIR REST API.
@@ -15,7 +15,7 @@ We are building a "Sidecar" Web App (Next.js) that automates clinical data entry
 3. **No Direct DB Access:** We use the `@medplum/core` SDK for all data fetching and writing.
 
 ## Key Workflows
-- **Ingest:** Fetch transcript from Heidi API.
+- **Ingest:** Fetch transcript from transcription service.
 - **Process:** Claude extracts clinical intents -> maps to FHIR resources.
 - **Review:** UI displays "Action Cards" (Draft Orders).
 - **Execute:** Doctor clicks "Approve" -> SDK writes to Medplum.

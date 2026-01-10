@@ -1,7 +1,7 @@
 {
-  "name": "heidihackss",
+  "name": "clinicact",
   "version": "1.0.0",
-  "description": "testing",
+  "description": "Clinical Action Layer - AI-powered clinical data entry automation",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -10,15 +10,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chanu1406/HeidiHackss.git"
+    "url": "git+https://github.com/shreyaskommuri/ClinicAct.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/chanu1406/HeidiHackss/issues"
+    "url": "https://github.com/shreyaskommuri/ClinicAct/issues"
   },
-  "homepage": "https://github.com/chanu1406/HeidiHackss#readme",
+  "homepage": "https://github.com/shreyaskommuri/ClinicAct#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.22.0",
     "@supabase/supabase-js": "^2.84.0"

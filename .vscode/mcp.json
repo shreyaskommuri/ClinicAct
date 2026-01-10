@@ -3,7 +3,7 @@
     "supabase": {
       "command": "node",
       "args": [
-        "/Users/chanuollala/Documents/HeidiHackss/supabase-mcp.js"
+        "/Users/shreyas/ClnicAct/supabase-mcp.js"
       ],
       "env": {
         "SUPABASE_URL": "${env:SUPABASE_URL}",
