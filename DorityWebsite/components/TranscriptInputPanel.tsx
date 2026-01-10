@@ -3,10 +3,11 @@
 import { FileText, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import VoiceTranscription from "./VoiceTranscription";
+import AIScribe from "./AIScribe";
 import { useState } from "react";
 
 export default function TranscriptInputPanel() {
-  const [activeTab, setActiveTab] = useState<"ai" | "manual">("ai");
+  const [activeTab, setActiveTab] = useState<"ai" | "ai-scribe" | "manual">("ai-scribe");
   const {
     patient,
     transcript,
@@ -40,12 +41,22 @@ export default function TranscriptInputPanel() {
       {/* Header */}
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-zinc-900 mb-1">Session Transcript</h2>
-        <p className="text-xs text-zinc-600">Converse with AI practitioner or type manually</p>
+        <p className="text-xs text-zinc-600">Use AI Scribe for real-time transcription, or enter manually</p>
       </div>
 
       {/* Tabs */}
       {!isDisabled && (
         <div className="flex gap-2 mb-4 border-b border-zinc-200">
+          <button
+            onClick={() => setActiveTab("ai-scribe")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === "ai-scribe"
+                ? "text-[#7C2D3E] border-b-2 border-[#7C2D3E]"
+                : "text-zinc-600 hover:text-zinc-900"
+            }`}
+          >
+            AI Scribe
+          </button>
           <button
             onClick={() => setActiveTab("ai")}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -81,6 +92,16 @@ export default function TranscriptInputPanel() {
         </div>
       )}
 
+      {/* AI Scribe Tab - Real-time transcription */}
+      {!isDisabled && activeTab === "ai-scribe" && (
+        <div className="mb-4">
+          <AIScribe 
+            onTranscriptUpdate={setTranscript}
+            disabled={isDisabled || isLoading.analyze}
+          />
+        </div>
+      )}
+
       {/* AI Practitioner Tab */}
       {!isDisabled && activeTab === "ai" && (
         <div className="mb-4">
@@ -102,6 +123,8 @@ export default function TranscriptInputPanel() {
           placeholder={
             isDisabled
               ? "Select a patient first…"
+              : activeTab === "ai-scribe"
+              ? "Speech will appear here in real-time as you speak..."
               : "Patient presents with complaints of increased thirst and frequent urination..."
           }
           className="flex-1 w-full p-4 text-sm bg-white border border-zinc-200/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30 resize-none disabled:bg-zinc-50 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-inner transition-all placeholder:text-zinc-400"

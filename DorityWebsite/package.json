@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.70.1",
+    "@deepgram/sdk": "^3.6.0",
     "@google/generative-ai": "^0.24.1",
     "@medplum/core": "^5.0.4",
     "@medplum/fhirtypes": "^5.0.4",
