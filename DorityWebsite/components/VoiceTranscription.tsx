@@ -1,7 +1,21 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Mic, MicOff, Upload, Loader2, AlertCircle, Check } from "lucide-react";
+import { Mic, MicOff, Upload, Loader2, AlertCircle, Check, FileText, Pill, Activity } from "lucide-react";
+
+interface MedicalSummary {
+  chiefComplaint?: string;
+  symptoms?: string[];
+  vitalSigns?: Record<string, string>;
+  diagnoses?: string[];
+  medications?: Array<{ name: string; dosage: string; frequency: string }>;
+  procedures?: string[];
+  labOrders?: string[];
+  imagingOrders?: string[];
+  referrals?: string[];
+  followUp?: string;
+  notes?: string;
+}
 
 interface VoiceTranscriptionProps {
   onTranscriptFetched: (transcript: string, metadata?: any) => void;
@@ -14,6 +28,8 @@ export default function VoiceTranscription({ onTranscriptFetched, disabled }: Vo
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [medicalSummary, setMedicalSummary] = useState<MedicalSummary | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -82,12 +98,14 @@ export default function VoiceTranscription({ onTranscriptFetched, disabled }: Vo
   const transcribeAudio = async (audioBlob: Blob | File) => {
     setIsTranscribing(true);
     setSuccess(false);
+    setMedicalSummary(null);
     
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
       
-      const response = await fetch('/api/elevenlabs/transcribe', {
+      // Use Deepgram API with medical AI summary
+      const response = await fetch('/api/deepgram/transcribe', {
         method: 'POST',
         body: formData,
       });
@@ -101,10 +119,17 @@ export default function VoiceTranscription({ onTranscriptFetched, disabled }: Vo
       
       if (data.success && data.transcript) {
         onTranscriptFetched(data.transcript, data.metadata);
+        
+        // Store medical summary if available
+        if (data.medicalSummary) {
+          setMedicalSummary(data.medicalSummary);
+          setShowSummary(true);
+        }
+        
         setSuccess(true);
         
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccess(false), 3000);
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccess(false), 5000);
       } else {
         throw new Error('No transcript received');
       }
@@ -142,7 +167,82 @@ export default function VoiceTranscription({ onTranscriptFetched, disabled }: Vo
           <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-sm font-medium text-green-900">Success</p>
-            <p className="text-xs text-green-700 mt-0.5">Transcript loaded successfully</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              Transcript loaded with speaker identification
+              {medicalSummary && ' • Medical summary extracted'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Medical Summary Display */}
+      {medicalSummary && showSummary && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              AI Medical Summary
+            </h3>
+            <button
+              onClick={() => setShowSummary(false)}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              Hide
+            </button>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            {medicalSummary.chiefComplaint && (
+              <div>
+                <span className="font-medium text-blue-900">Chief Complaint:</span>
+                <p className="text-blue-700 mt-0.5">{medicalSummary.chiefComplaint}</p>
+              </div>
+            )}
+
+            {medicalSummary.symptoms && medicalSummary.symptoms.length > 0 && (
+              <div>
+                <span className="font-medium text-blue-900">Symptoms:</span>
+                <ul className="text-blue-700 mt-0.5 ml-4 list-disc">
+                  {medicalSummary.symptoms.map((symptom, i) => (
+                    <li key={i}>{symptom}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {medicalSummary.medications && medicalSummary.medications.length > 0 && (
+              <div>
+                <span className="font-medium text-blue-900 flex items-center gap-1">
+                  <Pill className="w-3 h-3" />
+                  Medications:
+                </span>
+                <ul className="text-blue-700 mt-0.5 ml-4 list-disc">
+                  {medicalSummary.medications.map((med, i) => (
+                    <li key={i}>
+                      {med.name} {med.dosage && `- ${med.dosage}`} {med.frequency && `(${med.frequency})`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {medicalSummary.labOrders && medicalSummary.labOrders.length > 0 && (
+              <div>
+                <span className="font-medium text-blue-900">Lab Orders:</span>
+                <ul className="text-blue-700 mt-0.5 ml-4 list-disc">
+                  {medicalSummary.labOrders.map((lab, i) => (
+                    <li key={i}>{lab}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {medicalSummary.followUp && (
+              <div>
+                <span className="font-medium text-blue-900">Follow-up:</span>
+                <p className="text-blue-700 mt-0.5">{medicalSummary.followUp}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -190,9 +290,16 @@ export default function VoiceTranscription({ onTranscriptFetched, disabled }: Vo
 
       {/* Transcribing Status */}
       {isTranscribing && (
-        <div className="flex items-center justify-center gap-2 text-sm text-zinc-600 py-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Transcribing audio...
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-sm text-purple-900">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <div>
+              <p className="font-medium">Processing with Deepgram Flux...</p>
+              <p className="text-xs text-purple-700 mt-0.5">
+                Transcribing audio, identifying speakers, and extracting medical information
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>
