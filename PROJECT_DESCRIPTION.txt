@@ -1,0 +1,233 @@
+================================================================================
+                              CLINICACT
+        Clinical Action Layer - AI-Powered Clinical Documentation
+================================================================================
+
+PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+ClinicAct is an intelligent "sidecar" web application that revolutionizes 
+clinical documentation and data entry in healthcare settings. Built as a Next.js
+application, it sits alongside Electronic Medical Record (EMR) systems to 
+automate the tedious process of translating clinical conversations into 
+structured medical orders and documentation.
+
+The system acts as a smart assistant for healthcare providers, listening to 
+patient consultations and automatically generating draft orders for medications, 
+referrals, lab tests, and imaging studies - all ready for the doctor to review 
+and approve with a single click.
+
+
+CORE FUNCTIONALITY
+--------------------------------------------------------------------------------
+
+1. TRANSCRIPT INGESTION
+   - Accepts audio transcripts from patient consultations
+   - Supports integration with transcription services
+   - Processes both real-time and uploaded transcripts
+
+2. AI-POWERED ANALYSIS
+   - Uses advanced AI models (Claude 3.5 Sonnet / Gemini) to analyze clinical
+     conversations
+   - Extracts clinical intents and medical decisions from natural language
+   - Identifies medications, referrals, tests, and procedures mentioned
+   - Maps extracted information to standardized medical coding systems
+
+3. FHIR RESOURCE GENERATION
+   - Converts AI-extracted clinical intents into valid FHIR R4 resources
+   - Generates draft orders including:
+     * MedicationRequest - Prescription orders
+     * ServiceRequest - Lab tests, imaging, procedures, referrals
+     * QuestionnaireResponse - Structured clinical documentation
+   - Ensures all data follows HL7 FHIR (Fast Healthcare Interoperability 
+     Resources) standards
+
+4. INTERACTIVE REVIEW INTERFACE
+   - Displays "Action Cards" for each proposed clinical action
+   - Shows draft orders with all relevant details pre-filled
+   - Allows physicians to review, edit, and approve orders
+   - Provides contextual information and validation
+
+5. PATIENT DATA INTEGRATION
+   - Searches and retrieves patient demographics from Medplum FHIR server
+   - Displays comprehensive patient information including:
+     * Demographics (name, DOB, contact info)
+     * Insurance information
+     * Emergency contacts
+     * Medical history
+   - Ensures proper patient context for all orders
+
+6. QUESTIONNAIRE WORKFLOW
+   - Integrates with FHIR Questionnaires stored in Medplum
+   - Maps AI-generated actions to appropriate questionnaire forms
+   - Auto-fills questionnaire responses based on transcript analysis
+   - Supports complex multi-field clinical forms
+
+7. ORDER EXECUTION
+   - Submits approved orders directly to Medplum FHIR server
+   - Creates permanent medical records from draft orders
+   - Maintains audit trail of all clinical actions
+   - Ensures data integrity and compliance
+
+8. AFTERCARE COMMUNICATION
+   - Automatically generates patient-friendly aftercare summaries
+   - Creates personalized emails explaining:
+     * What was discussed during the visit
+     * Prescribed medications and instructions
+     * Scheduled tests and referrals
+     * Next steps in care
+   - Sends summaries via SendGrid email service
+
+
+TECHNICAL ARCHITECTURE
+--------------------------------------------------------------------------------
+
+FRONTEND STACK
+- Next.js 14+ (App Router) - Modern React framework
+- React - Component-based UI
+- TypeScript - Type-safe development
+- Tailwind CSS - Utility-first styling
+- Lucide React - Modern icon library
+
+BACKEND & DATA
+- Medplum - Open-source FHIR server (headless EMR)
+- FHIR R4 - Healthcare interoperability standard
+- @medplum/core SDK - FHIR client library
+- RESTful API architecture
+
+AI & PROCESSING
+- Anthropic Claude 3.5 Sonnet - Primary AI model
+- Google Gemini - Alternative AI model
+- Advanced prompt engineering for clinical accuracy
+- Structured JSON response parsing
+
+INTEGRATIONS
+- ElevenLabs - Voice transcription service
+- SendGrid - Email delivery service
+- SMART on FHIR - Healthcare app authorization standard
+
+
+KEY PROJECT COMPONENTS
+--------------------------------------------------------------------------------
+
+DORITYWEBSITE (Main Application)
+- Full-featured clinical workflow application
+- Patient search and management
+- Transcript analysis interface
+- Action card review system
+- Aftercare summary generation
+- Email notification system
+
+CLINICAL-ACTION-LAYER (Core API)
+- Lightweight implementation of core APIs
+- /api/analyze - AI-powered transcript analysis
+- /api/execute - Order execution to Medplum
+- /api/medplum/patients - Patient data retrieval
+- Testing and demonstration tools
+
+MEDPLUMSERVER (Mock Server)
+- Local development FHIR server
+- Patient data management
+- Authentication and authorization
+- Testing and development environment
+
+
+USE CASES
+--------------------------------------------------------------------------------
+
+1. Primary Care Visit
+   - Doctor discusses symptoms and prescribes medication
+   - ClinicAct generates MedicationRequest with dosage, frequency, duration
+   - Doctor reviews and approves with one click
+   - Patient receives aftercare email with prescription details
+
+2. Specialist Referral
+   - Doctor decides patient needs specialist consultation
+   - ClinicAct creates ServiceRequest referral with specialty and reason
+   - System suggests nearby specialists
+   - Referral submitted to EMR and patient notified
+
+3. Diagnostic Testing
+   - Doctor orders lab work or imaging
+   - ClinicAct generates appropriate ServiceRequest forms
+   - All necessary clinical information auto-filled
+   - Orders sent directly to lab/imaging center through EMR
+
+4. Follow-Up Scheduling
+   - Doctor schedules follow-up appointment
+   - ClinicAct documents visit plan
+   - Patient receives summary with instructions
+   - Follow-up details logged in EMR
+
+
+BENEFITS & VALUE PROPOSITION
+--------------------------------------------------------------------------------
+
+FOR PHYSICIANS
+✓ Reduces documentation time by 60-70%
+✓ Eliminates manual data entry errors
+✓ Allows more focus on patient interaction
+✓ Streamlines order creation process
+✓ Provides smart suggestions based on clinical context
+
+FOR PATIENTS
+✓ Comprehensive aftercare summaries
+✓ Clear explanation of treatment plans
+✓ Faster prescription and test processing
+✓ Reduced wait times
+✓ Better communication about care
+
+FOR HEALTHCARE ORGANIZATIONS
+✓ Improved efficiency and throughput
+✓ Better documentation quality
+✓ Enhanced compliance with standards
+✓ Reduced administrative overhead
+✓ Interoperable with existing EMR systems
+
+
+COMPLIANCE & STANDARDS
+--------------------------------------------------------------------------------
+
+- FHIR R4 compliant - All data follows HL7 FHIR standard
+- SMART on FHIR ready - Supports healthcare app authorization
+- Patient privacy focused - Secure data handling
+- Audit trail support - Full logging of clinical actions
+- Medical coding standards - Uses standard terminologies (SNOMED, LOINC, RxNorm)
+
+
+DEVELOPMENT STATUS
+--------------------------------------------------------------------------------
+
+COMPLETED FEATURES
+✓ Transcript analysis with Claude/Gemini
+✓ FHIR resource generation
+✓ Patient search and selection
+✓ Questionnaire-based workflows
+✓ Action card review interface
+✓ Order execution to Medplum
+✓ Aftercare summary generation
+✓ Email notification system
+✓ Practitioner search and referral matching
+
+FUTURE ENHANCEMENTS
+- Real-time audio transcription
+- Voice command integration
+- Medication interaction checking
+- Clinical decision support alerts
+- Multi-language support
+- Mobile application
+- Offline mode capability
+- Advanced analytics dashboard
+
+
+PROJECT GOALS
+--------------------------------------------------------------------------------
+
+The ultimate goal of ClinicAct is to eliminate the administrative burden of 
+clinical documentation, allowing healthcare providers to spend more time with 
+patients and less time with computers. By leveraging AI and modern healthcare 
+standards, we're building a future where technology truly serves medicine.
+
+
+================================================================================
+                      Built with ❤️ for better healthcare
+================================================================================

@@ -1,0 +1,946 @@
+================================================================================
+                          CLINICACT TECH STACK
+                    Technical Architecture & Implementation
+================================================================================
+
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. Architecture Overview
+2. Frontend Stack Deep Dive
+3. Backend & Data Layer
+4. AI Processing Pipeline
+5. External Integrations
+6. Data Flow & Architecture Patterns
+7. API Endpoints Reference
+8. Development Environment
+9. Security & Authentication
+10. Deployment & Scalability
+
+
+================================================================================
+1. ARCHITECTURE OVERVIEW
+================================================================================
+
+ClinicAct follows a modern, modular architecture:
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                          USER INTERFACE                              │
+│                    (Next.js 14 App Router)                          │
+└──────────────────────┬──────────────────────────────────────────────┘
+                       │
+                       ├─→ React Components (Patient Search, Actions)
+                       ├─→ Tailwind CSS (Responsive Styling)
+                       └─→ TypeScript (Type Safety)
+                       │
+┌──────────────────────▼──────────────────────────────────────────────┐
+│                       API ROUTES LAYER                               │
+│                    (Next.js API Routes)                             │
+└──────────────────────┬──────────────────────────────────────────────┘
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+        ▼              ▼              ▼
+┌──────────────┐ ┌──────────┐ ┌─────────────┐
+│  Claude AI   │ │ Medplum  │ │   SendGrid  │
+│   (Gemini)   │ │   FHIR   │ │    Email    │
+└──────────────┘ └──────────┘ └─────────────┘
+   AI Analysis    Patient Data   Notifications
+
+
+DESIGN PHILOSOPHY
+- **Separation of Concerns**: Frontend, API, and data layers are distinct
+- **FHIR-First**: All medical data uses FHIR R4 standard
+- **API-Driven**: Backend-agnostic design via REST APIs
+- **Type-Safe**: TypeScript throughout for reliability
+- **Standards Compliant**: SMART on FHIR, HL7 FHIR R4
+
+
+================================================================================
+2. FRONTEND STACK DEEP DIVE
+================================================================================
+
+NEXT.JS 14+ (APP ROUTER)
+--------------------------------------------------------------------------------
+Framework: React-based full-stack framework
+Version: 14+ with App Router
+
+Why Next.js?
+- Server-Side Rendering (SSR) for fast initial loads
+- API routes for backend functionality in same codebase
+- Automatic code splitting and optimization
+- Built-in routing with file-system based router
+- Edge runtime support for global deployment
+
+Directory Structure:
+/app
+  ├── page.tsx              → Main application UI
+  ├── layout.tsx            → Root layout wrapper
+  ├── globals.css           → Global styles
+  └── api/                  → Backend API routes
+      ├── analyze/          → Transcript analysis
+      ├── execute/          → Order execution
+      ├── medplum/          → Patient data
+      ├── questionnaire/    → Form retrieval
+      └── session/          → Workflow management
+
+Key Features Used:
+- Server Components: Default for better performance
+- Client Components: Interactive UI with 'use client'
+- Route Handlers: POST/GET endpoints in route.ts files
+- Middleware: Request/response interception
+- Environment Variables: Secure config management
+
+
+REACT 18+
+--------------------------------------------------------------------------------
+UI Library: Component-based declarative UI
+
+Component Architecture:
+/components
+  ├── PatientSearchPanel.tsx      → Patient lookup interface
+  ├── TranscriptInputPanel.tsx    → Transcript entry
+  ├── ActionCard.tsx              → Individual order cards
+  ├── ActionList.tsx              → Collection of actions
+  ├── QuestionnaireForm.tsx       → Dynamic FHIR forms
+  ├── AftercarePanel.tsx          → Summary generation
+  ├── WorkflowStepper.tsx         → Multi-step wizard
+  └── VoiceTranscription.tsx      → Audio input
+
+State Management:
+- React Context API: Global session state (SessionContext)
+- useState: Local component state
+- useEffect: Side effects and data fetching
+- Custom Hooks: Reusable logic (usePatientData, useSession)
+
+Component Patterns:
+- Functional Components: All components use function syntax
+- Props & TypeScript: Strict prop typing for safety
+- Conditional Rendering: Dynamic UI based on state
+- Event Handlers: User interactions (onClick, onChange)
+
+
+TYPESCRIPT
+--------------------------------------------------------------------------------
+Language: Typed JavaScript superset
+Version: 5.0+
+
+Type Definitions:
+/lib/types.ts
+  - Patient: FHIR Patient resource
+  - MedicationRequest: FHIR medication order
+  - ServiceRequest: FHIR service order
+  - QuestionnaireResponse: FHIR form response
+  - ClinicalAction: Internal action representation
+  - TranscriptData: Input transcript structure
+
+Benefits:
+- Compile-time error detection
+- IntelliSense/autocomplete in VS Code
+- Refactoring safety
+- Self-documenting code
+- Integration with @medplum/fhirtypes
+
+
+TAILWIND CSS
+--------------------------------------------------------------------------------
+Styling: Utility-first CSS framework
+Configuration: tailwind.config.js
+
+Why Tailwind?
+- Rapid UI development with utility classes
+- Consistent design system
+- Responsive design built-in
+- Small production bundle (purges unused CSS)
+- Easy customization
+
+Example Usage:
+<div className="flex flex-col gap-4 p-6 bg-white rounded-lg shadow-md">
+  <h2 className="text-2xl font-bold text-gray-900">Patient Search</h2>
+  <input className="border border-gray-300 rounded px-4 py-2" />
+</div>
+
+Custom Theme:
+- Color palette: Healthcare-friendly blues and greens
+- Typography: Clear, readable fonts
+- Spacing: Consistent padding/margin scale
+- Shadows: Subtle depth for cards
+
+
+LUCIDE REACT
+--------------------------------------------------------------------------------
+Icons: Modern, clean icon library
+Import: import { User, FileText, CheckCircle } from 'lucide-react'
+
+Icon Usage:
+- Patient indicators: <User />
+- Document icons: <FileText />
+- Status indicators: <CheckCircle />
+- Action buttons: <Send />, <Edit />, <Trash />
+
+Benefits:
+- Tree-shakeable (only imports used icons)
+- Consistent design language
+- Customizable size and color
+- Accessible with proper ARIA labels
+
+
+================================================================================
+3. BACKEND & DATA LAYER
+================================================================================
+
+MEDPLUM (FHIR SERVER)
+--------------------------------------------------------------------------------
+Role: Backend database and FHIR server
+Type: Open-source headless EMR
+URL: https://api.medplum.com
+
+What Medplum Provides:
+1. FHIR R4 API: RESTful interface for health data
+2. Patient Management: Create, read, update patients
+3. Resource Storage: Store MedicationRequest, ServiceRequest, etc.
+4. Search API: Query patients, orders, questionnaires
+5. Authentication: OAuth 2.0 / SMART on FHIR
+6. Subscriptions: Real-time data notifications
+7. Audit Logs: Track all data access
+
+Data Model: All data stored as FHIR resources
+- Patient: Demographics, contact info
+- Practitioner: Healthcare providers
+- Organization: Clinics, hospitals, pharmacies
+- MedicationRequest: Prescription orders
+- ServiceRequest: Labs, imaging, referrals
+- Questionnaire: Clinical forms
+- QuestionnaireResponse: Completed forms
+
+
+@MEDPLUM/CORE SDK
+--------------------------------------------------------------------------------
+Library: Official Medplum JavaScript client
+Installation: npm install @medplum/core @medplum/fhirtypes
+
+Usage Pattern:
+```typescript
+import { MedplumClient } from '@medplum/core';
+import { Patient, MedicationRequest } from '@medplum/fhirtypes';
+
+// Initialize client
+const medplum = new MedplumClient({
+  baseUrl: process.env.MEDPLUM_BASE_URL,
+  clientId: process.env.MEDPLUM_CLIENT_ID,
+  clientSecret: process.env.MEDPLUM_CLIENT_SECRET,
+});
+
+// Search for patients
+const patients = await medplum.searchResources('Patient', {
+  name: 'John Doe',
+  _count: 10,
+});
+
+// Create medication order
+const medRequest: MedicationRequest = {
+  resourceType: 'MedicationRequest',
+  status: 'draft',
+  intent: 'order',
+  medicationCodeableConcept: {
+    coding: [{
+      system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+      code: '197361',
+      display: 'Amoxicillin 500mg',
+    }],
+  },
+  subject: { reference: `Patient/${patientId}` },
+  dosageInstruction: [{
+    text: 'Take one capsule three times daily',
+  }],
+};
+
+const created = await medplum.createResource(medRequest);
+```
+
+Key Methods:
+- searchResources(): Query FHIR resources
+- readResource(): Get single resource by ID
+- createResource(): Create new resource
+- updateResource(): Update existing resource
+- deleteResource(): Remove resource
+
+
+FHIR R4 STANDARD
+--------------------------------------------------------------------------------
+Standard: Fast Healthcare Interoperability Resources
+Version: R4 (Release 4)
+Authority: HL7 International
+
+Core Concepts:
+1. Resources: Standardized data structures (Patient, Observation, etc.)
+2. REST API: HTTP-based CRUD operations
+3. JSON/XML: Data exchange formats
+4. References: Link between resources
+5. Extensions: Custom data fields
+6. Profiles: Resource constraints
+
+Resource Structure:
+{
+  "resourceType": "Patient",           // Type of resource
+  "id": "abc123",                      // Unique identifier
+  "meta": { ... },                     // Metadata
+  "identifier": [ ... ],               // Business identifiers
+  "name": [ ... ],                     // Human names
+  "telecom": [ ... ],                  // Contact points
+  "gender": "male",                    // Administrative gender
+  "birthDate": "1990-01-01"           // Date of birth
+}
+
+Why FHIR?
+- Industry standard for health data exchange
+- Interoperable with all major EMR systems
+- Rich ecosystem of tools and libraries
+- Future-proof and well-maintained
+- Designed for API-first applications
+
+
+================================================================================
+4. AI PROCESSING PIPELINE
+================================================================================
+
+CLAUDE 3.5 SONNET (Anthropic)
+--------------------------------------------------------------------------------
+Model: claude-3-5-sonnet-20241022
+API: Anthropic SDK (@anthropic-ai/sdk)
+
+Role: Primary AI for transcript analysis
+
+Capabilities:
+- Medical terminology understanding
+- Clinical intent extraction
+- Structured data generation (JSON)
+- Context retention (200K token window)
+- Reasoning about complex medical scenarios
+
+Implementation:
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+const response = await anthropic.messages.create({
+  model: 'claude-3-5-sonnet-20241022',
+  max_tokens: 8192,
+  temperature: 0.2,  // Low temp for consistency
+  system: systemPrompt,
+  messages: [
+    {
+      role: 'user',
+      content: `Analyze this clinical transcript and extract actions: ${transcript}`
+    }
+  ],
+});
+```
+
+Prompt Engineering Strategy:
+1. System Prompt: Define role as clinical assistant
+2. Few-Shot Examples: Show expected output format
+3. Context Injection: Include available questionnaires
+4. Structured Output: Request JSON with specific schema
+5. Validation Instructions: Ensure FHIR compliance
+
+
+GOOGLE GEMINI (Alternative)
+--------------------------------------------------------------------------------
+Model: gemini-1.5-pro
+API: @google/generative-ai
+
+Role: Alternative AI model for analysis
+
+When to Use:
+- Cost optimization (cheaper than Claude)
+- Faster response times
+- Multimodal inputs (future audio/image support)
+
+Configuration:
+```typescript
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+
+const result = await model.generateContent({
+  contents: [{ role: 'user', parts: [{ text: prompt }] }],
+  generationConfig: {
+    temperature: 0.2,
+    maxOutputTokens: 8192,
+  },
+});
+```
+
+
+AI WORKFLOW
+--------------------------------------------------------------------------------
+
+Step 1: Transcript Preprocessing
+- Normalize text (remove extra whitespace)
+- Identify speakers if multi-party
+- Extract timestamps if present
+
+Step 2: Questionnaire Context Loading
+- Fetch all available questionnaires from Medplum
+- Extract field definitions (linkId, type, options)
+- Build structured context for AI
+
+Step 3: AI Prompt Construction
+- System: "You are a clinical documentation assistant..."
+- User: Transcript + questionnaire definitions
+- Request: JSON array of ClinicalAction objects
+
+Step 4: AI Response Parsing
+- Parse JSON response
+- Validate structure
+- Map to internal ClinicalAction type
+
+Step 5: FHIR Resource Generation
+- Convert ClinicalAction to QuestionnaireResponse
+- Fill required fields with patient data
+- Validate against FHIR schema
+
+Step 6: Gap Filling
+- Identify missing required fields
+- Use defaults or prompt for user input
+- Ensure completeness before execution
+
+
+================================================================================
+5. EXTERNAL INTEGRATIONS
+================================================================================
+
+ELEVENLABS TRANSCRIPTION
+--------------------------------------------------------------------------------
+Service: Speech-to-Text API
+Endpoint: POST /api/elevenlabs/transcribe
+
+Features:
+- Real-time audio transcription
+- High accuracy medical terminology
+- Speaker diarization (future)
+- Multiple language support
+
+Integration Flow:
+1. Client uploads audio file
+2. API forwards to ElevenLabs
+3. Receives transcript text
+4. Returns to frontend for analysis
+
+
+SENDGRID EMAIL
+--------------------------------------------------------------------------------
+Service: Email delivery platform
+Library: @sendgrid/mail
+
+Configuration:
+```typescript
+import sgMail from '@sendgrid/mail';
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+const msg = {
+  to: patientEmail,
+  from: 'noreply@clinicact.com',
+  subject: 'Your After-Visit Summary',
+  text: aftercareSummary,
+  html: `<div>${formattedSummary}</div>`,
+};
+
+await sgMail.send(msg);
+```
+
+Email Types:
+- Aftercare Summaries: Post-visit instructions
+- Prescription Notifications: Medication details
+- Referral Confirmations: Specialist appointments
+- Test Reminders: Upcoming lab work
+
+Template Structure:
+- Header: Practice/Organization branding
+- Patient Name: Personalized greeting
+- Visit Summary: What was discussed
+- Action Items: Medications, tests, referrals
+- Next Steps: Follow-up instructions
+- Footer: Contact information
+
+
+================================================================================
+6. DATA FLOW & ARCHITECTURE PATTERNS
+================================================================================
+
+COMPLETE USER FLOW
+--------------------------------------------------------------------------------
+
+1. SESSION START
+   User → Frontend → /api/session/start → Medplum
+   - Select patient from search
+   - Retrieve patient demographics
+   - Initialize session context
+   - Store in React Context
+
+2. TRANSCRIPT INPUT
+   User → Frontend → State
+   - Enter or upload transcript
+   - Optional: Voice transcription via ElevenLabs
+   - Display in transcript panel
+
+3. AI ANALYSIS
+   User → Frontend → /api/analyze → Claude/Gemini
+   - Send transcript + patient context
+   - Include available questionnaires
+   - Parse AI response
+   - Generate action cards
+
+4. QUESTIONNAIRE MAPPING
+   /api/analyze → /api/questionnaire/[id] → Medplum
+   - Fetch full questionnaire definitions
+   - Map AI extractions to form fields
+   - Pre-fill QuestionnaireResponse
+   - Display in action cards
+
+5. USER REVIEW & EDIT
+   Frontend → Action Cards
+   - Display each proposed action
+   - Allow editing of fields
+   - Validate inputs
+   - Mark for approval/rejection
+
+6. ORDER EXECUTION
+   User → Frontend → /api/execute → Medplum
+   - Convert QuestionnaireResponse to FHIR resource
+   - Create ServiceRequest or MedicationRequest
+   - Write to Medplum database
+   - Confirm success
+
+7. AFTERCARE GENERATION
+   Frontend → /api/session/aftercare → Claude/Gemini
+   - Summarize all approved actions
+   - Generate patient-friendly text
+   - Include next steps
+   - Format for email
+
+8. NOTIFICATION DELIVERY
+   Frontend → /api/session/send-aftercare → SendGrid
+   - Send email to patient
+   - Include aftercare summary
+   - Log delivery status
+   - Complete workflow
+
+
+API REQUEST PATTERNS
+--------------------------------------------------------------------------------
+
+Pattern 1: Resource Search
+GET /api/medplum/patients?name=John&birthDate=1990-01-01
+→ Medplum: GET /fhir/R4/Patient?name=John&birthDate=1990-01-01
+← Returns: Bundle of Patient resources
+
+Pattern 2: Resource Creation
+POST /api/execute
+Body: { resource: QuestionnaireResponse, patientId: "123" }
+→ Medplum: POST /fhir/R4/ServiceRequest
+← Returns: Created resource with ID
+
+Pattern 3: AI Processing
+POST /api/analyze
+Body: { transcript: "...", patientId: "123" }
+→ Claude: messages.create(...)
+← Returns: { actions: ClinicalAction[] }
+
+
+ERROR HANDLING STRATEGY
+--------------------------------------------------------------------------------
+
+Frontend:
+- Try-catch blocks around API calls
+- Display error messages in UI
+- Maintain loading states
+- Retry logic for transient failures
+
+API Routes:
+```typescript
+try {
+  const result = await medplum.createResource(resource);
+  return NextResponse.json(result, { status: 201 });
+} catch (error) {
+  console.error('[API] Error:', error);
+  return NextResponse.json(
+    { error: error.message },
+    { status: 500 }
+  );
+}
+```
+
+Validation:
+- Type checking with TypeScript
+- FHIR schema validation
+- Required field checking
+- Format validation (dates, codes)
+
+
+================================================================================
+7. API ENDPOINTS REFERENCE
+================================================================================
+
+PATIENT MANAGEMENT
+--------------------------------------------------------------------------------
+GET /api/medplum/patients
+Query: ?name=string&birthDate=YYYY-MM-DD&gender=string
+Returns: Patient[]
+Description: Search for patients in Medplum
+
+POST /api/session/start
+Body: { patientId: string }
+Returns: { patient: ExtendedPatientData }
+Description: Initialize session with patient context
+
+
+TRANSCRIPT ANALYSIS
+--------------------------------------------------------------------------------
+POST /api/analyze
+Body: { 
+  transcript: string,
+  patientId: string
+}
+Returns: { 
+  actions: ClinicalAction[],
+  rawResponse: string 
+}
+Description: Analyze transcript and extract clinical actions
+
+POST /api/elevenlabs/transcribe
+Body: FormData with audio file
+Returns: { transcript: string }
+Description: Convert audio to text
+
+
+QUESTIONNAIRE OPERATIONS
+--------------------------------------------------------------------------------
+GET /api/questionnaires
+Returns: Questionnaire[]
+Description: List all available questionnaires
+
+GET /api/questionnaire/[id]
+Params: id (questionnaire ID)
+Returns: Questionnaire (full definition)
+Description: Get complete questionnaire with all fields
+
+
+ORDER EXECUTION
+--------------------------------------------------------------------------------
+POST /api/execute
+Body: {
+  resource: QuestionnaireResponse,
+  patientId: string,
+  actionType: string,
+  description: string
+}
+Returns: { 
+  resourceId: string,
+  resourceType: string 
+}
+Description: Create FHIR resource in Medplum
+
+
+AFTERCARE & NOTIFICATIONS
+--------------------------------------------------------------------------------
+POST /api/session/aftercare
+Body: {
+  actions: ClinicalAction[],
+  patientName: string,
+  practiceInfo: Organization
+}
+Returns: { 
+  subject: string,
+  body: string 
+}
+Description: Generate aftercare summary
+
+POST /api/session/send-aftercare
+Body: {
+  email: string,
+  subject: string,
+  body: string
+}
+Returns: { success: boolean }
+Description: Send email via SendGrid
+
+
+PRACTITIONER SEARCH
+--------------------------------------------------------------------------------
+GET /api/find-practitioners
+Query: ?specialty=string&city=string&state=string&limit=number
+Returns: Practitioner[]
+Description: Find specialists for referrals
+
+
+================================================================================
+8. DEVELOPMENT ENVIRONMENT
+================================================================================
+
+REQUIRED TOOLS
+--------------------------------------------------------------------------------
+- Node.js: v18+ (LTS recommended)
+- npm: v9+ (comes with Node.js)
+- Git: Version control
+- VS Code: Recommended IDE
+- Medplum Account: For FHIR server access
+- Anthropic API Key: For Claude access
+- SendGrid Account: For email delivery
+
+
+PROJECT SETUP
+--------------------------------------------------------------------------------
+1. Clone repository:
+   git clone https://github.com/shreyaskommuri/ClinicAct.git
+
+2. Install dependencies:
+   cd ClinicAct/DorityWebsite
+   npm install
+
+3. Configure environment:
+   cp .env.example .env.local
+   # Edit .env.local with your API keys
+
+4. Run development server:
+   npm run dev
+   # Opens at http://localhost:3000
+
+
+ENVIRONMENT VARIABLES
+--------------------------------------------------------------------------------
+MEDPLUM_BASE_URL=https://api.medplum.com
+MEDPLUM_CLIENT_ID=your_client_id
+MEDPLUM_CLIENT_SECRET=your_client_secret
+
+ANTHROPIC_API_KEY=sk-ant-xxxxx
+GEMINI_API_KEY=AIzaSyxxxxx
+
+SENDGRID_API_KEY=SG.xxxxx
+SENDGRID_FROM_EMAIL=noreply@example.com
+
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+
+FILE STRUCTURE
+--------------------------------------------------------------------------------
+DorityWebsite/
+├── app/                    # Next.js App Router
+│   ├── api/               # Backend API routes
+│   ├── page.tsx           # Main UI
+│   └── layout.tsx         # Root layout
+├── components/            # React components
+├── lib/                   # Utility functions
+│   ├── types.ts          # TypeScript types
+│   ├── medplum-client.ts # Medplum setup
+│   └── patient-utils.ts  # Helper functions
+├── public/               # Static assets
+├── .env.local           # Environment variables
+├── next.config.js       # Next.js configuration
+├── tailwind.config.js   # Tailwind CSS config
+├── tsconfig.json        # TypeScript config
+└── package.json         # Dependencies
+
+
+DEVELOPMENT WORKFLOW
+--------------------------------------------------------------------------------
+1. Start dev server: npm run dev
+2. Make code changes
+3. Hot reload updates automatically
+4. Test in browser
+5. Check console for errors
+6. Commit changes: git commit -m "message"
+7. Push to GitHub: git push
+
+
+DEBUGGING TIPS
+--------------------------------------------------------------------------------
+- Use console.log() for quick debugging
+- Check Network tab in DevTools for API calls
+- Use React DevTools extension
+- Enable verbose logging in Medplum client
+- Test API routes independently with Postman/curl
+
+
+================================================================================
+9. SECURITY & AUTHENTICATION
+================================================================================
+
+ENVIRONMENT VARIABLE SECURITY
+--------------------------------------------------------------------------------
+- Never commit .env files to Git
+- Use .env.local for local development
+- Use platform env vars for production
+- Rotate API keys regularly
+- Use different keys per environment
+
+
+MEDPLUM AUTHENTICATION
+--------------------------------------------------------------------------------
+Method: OAuth 2.0 Client Credentials
+
+Flow:
+1. Application sends clientId + clientSecret
+2. Medplum returns access token
+3. Token included in all subsequent requests
+4. Token expires after period (refresh as needed)
+
+Implementation:
+const medplum = new MedplumClient({
+  baseUrl: process.env.MEDPLUM_BASE_URL,
+  clientId: process.env.MEDPLUM_CLIENT_ID,
+  clientSecret: process.env.MEDPLUM_CLIENT_SECRET,
+});
+
+// SDK handles authentication automatically
+await medplum.startClientLogin(clientId, clientSecret);
+
+
+DATA PRIVACY
+--------------------------------------------------------------------------------
+- Patient data never logged to console in production
+- API keys never exposed to frontend
+- HTTPS only for all communications
+- FHIR permissions enforced by Medplum
+- Audit trail of all data access
+
+
+FUTURE: SMART ON FHIR
+--------------------------------------------------------------------------------
+Standard: OAuth 2.0 for healthcare apps
+
+When Implemented:
+- Users authenticate with EMR credentials
+- App requests specific scopes (patient/*.read)
+- EMR provides limited access token
+- No need to store patient credentials
+- Seamless integration with existing EMRs
+
+
+================================================================================
+10. DEPLOYMENT & SCALABILITY
+================================================================================
+
+DEPLOYMENT OPTIONS
+--------------------------------------------------------------------------------
+
+Option 1: Vercel (Recommended)
+- Native Next.js support
+- Automatic deployments from Git
+- Edge network for global performance
+- Built-in environment variables
+- Free tier available
+
+Option 2: AWS
+- EC2 or ECS for compute
+- RDS for database (if needed)
+- CloudFront for CDN
+- More control, more complexity
+
+Option 3: Docker
+- Containerize application
+- Deploy to any cloud provider
+- Kubernetes for orchestration
+- Portable and consistent
+
+
+SCALING CONSIDERATIONS
+--------------------------------------------------------------------------------
+
+Horizontal Scaling:
+- Next.js is stateless (scales easily)
+- Deploy multiple instances behind load balancer
+- Session state in database/Redis if needed
+
+Caching:
+- Cache questionnaire definitions
+- Memoize frequent Medplum queries
+- Use CDN for static assets
+
+Rate Limiting:
+- Implement rate limits on API routes
+- Prevent abuse of AI endpoints
+- Queue long-running AI requests
+
+Monitoring:
+- Log all API errors
+- Track response times
+- Monitor AI token usage
+- Alert on failures
+
+
+PERFORMANCE OPTIMIZATION
+--------------------------------------------------------------------------------
+
+Frontend:
+- Code splitting (automatic with Next.js)
+- Lazy load components
+- Optimize images with next/image
+- Minimize bundle size
+
+Backend:
+- Batch Medplum requests when possible
+- Implement request caching
+- Use Medplum subscriptions for real-time updates
+- Optimize AI prompts for speed
+
+Database:
+- Index frequently queried fields in Medplum
+- Use FHIR search parameters efficiently
+- Implement pagination for large result sets
+
+
+COST ESTIMATION
+--------------------------------------------------------------------------------
+
+AI Costs:
+- Claude: ~$15 per 1M input tokens
+- Typical transcript: 1000-2000 tokens
+- Cost per analysis: ~$0.015-0.03
+- 1000 patients/month: ~$15-30
+
+Infrastructure:
+- Vercel Free: $0 (hobby projects)
+- Vercel Pro: $20/month (production)
+- Medplum: Free tier or custom pricing
+- SendGrid: Free for 100 emails/day
+
+Total Monthly Cost (1000 patients):
+~$50-100 for small practice
+
+
+================================================================================
+                            TECHNICAL SUMMARY
+================================================================================
+
+ClinicAct leverages modern web technologies to create a robust, scalable, and
+compliant clinical documentation system:
+
+✓ Next.js 14 provides full-stack capabilities with excellent performance
+✓ React + TypeScript ensures type-safe, maintainable UI code
+✓ Medplum offers FHIR-compliant backend with zero infrastructure overhead
+✓ Claude 3.5 Sonnet delivers accurate clinical intent extraction
+✓ Tailwind CSS enables rapid, consistent UI development
+✓ FHIR R4 ensures interoperability with healthcare ecosystem
+
+The architecture is designed for:
+- Easy deployment (Vercel, AWS, Docker)
+- Horizontal scalability (stateless design)
+- Developer productivity (type safety, hot reload)
+- Standards compliance (FHIR, SMART on FHIR)
+- Cost efficiency (serverless, pay-per-use AI)
+
+This tech stack positions ClinicAct as a modern, interoperable solution that
+can integrate with existing healthcare systems while providing cutting-edge
+AI-powered automation.
+
+
+================================================================================
+                    Questions? See README.md or documentation
+================================================================================

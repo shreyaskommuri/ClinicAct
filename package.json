@@ -1,0 +1,26 @@
+{
+  "name": "clinicact",
+  "version": "1.0.0",
+  "description": "Clinical Action Layer - AI-powered clinical data entry automation",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "supabase-mcp": "node supabase-mcp.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shreyaskommuri/ClinicAct.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shreyaskommuri/ClinicAct/issues"
+  },
+  "homepage": "https://github.com/shreyaskommuri/ClinicAct#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "@supabase/supabase-js": "^2.84.0"
+  }
+}

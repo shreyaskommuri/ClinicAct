@@ -1,0 +1,159 @@
+"use client";
+
+import { FileText, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
+import { useSession } from "@/contexts/SessionContext";
+import VoiceTranscription from "./VoiceTranscription";
+import { useState } from "react";
+
+export default function TranscriptInputPanel() {
+  const [activeTab, setActiveTab] = useState<"ai" | "manual">("ai");
+  const {
+    patient,
+    transcript,
+    setTranscript,
+    analyzeTranscript,
+    isLoading,
+    error,
+    clearError,
+  } = useSession();
+
+  const handleGenerateActions = async () => {
+    clearError();
+    await analyzeTranscript();
+  };
+
+  const handleTranscriptFetched = (fetchedTranscript: string, metadata?: any) => {
+    setTranscript(fetchedTranscript);
+    
+    // Optional: Show a success message or metadata
+    if (metadata) {
+      console.log('Transcript metadata:', metadata);
+    }
+  };
+
+  const isDisabled = !patient;
+  const charCount = transcript.length;
+  const hasContent = transcript.trim().length > 20; // Minimum threshold
+
+  return (
+    <div className="bg-white border border-zinc-200/70 rounded-2xl shadow-sm p-6 flex flex-col min-h-[500px]">
+      {/* Header */}
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-zinc-900 mb-1">Session Transcript</h2>
+        <p className="text-xs text-zinc-600">Converse with AI practitioner or type manually</p>
+      </div>
+
+      {/* Tabs */}
+      {!isDisabled && (
+        <div className="flex gap-2 mb-4 border-b border-zinc-200">
+          <button
+            onClick={() => setActiveTab("ai")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === "ai"
+                ? "text-[#7C2D3E] border-b-2 border-[#7C2D3E]"
+                : "text-zinc-600 hover:text-zinc-900"
+            }`}
+          >
+            AI Practitioner
+          </button>
+          <button
+            onClick={() => setActiveTab("manual")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === "manual"
+                ? "text-[#7C2D3E] border-b-2 border-[#7C2D3E]"
+                : "text-zinc-600 hover:text-zinc-900"
+            }`}
+          >
+            Manual Input
+          </button>
+        </div>
+      )}
+
+      {isDisabled && (
+        <div className="bg-amber-50/50 border border-amber-200/50 rounded-xl p-3.5 mb-4 flex items-start gap-2.5">
+          <FileText className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-900">Select a patient to begin</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Search and select a patient on the left first
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* AI Practitioner Tab */}
+      {!isDisabled && activeTab === "ai" && (
+        <div className="mb-4">
+          <VoiceTranscription 
+            onTranscriptFetched={handleTranscriptFetched}
+            disabled={isDisabled || isLoading.analyze}
+          />
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col">
+        <label className="text-sm font-medium text-zinc-700 mb-2">
+          Consultation Transcript
+        </label>
+        <textarea
+          disabled={isDisabled}
+          value={transcript}
+          onChange={(e) => setTranscript(e.target.value)}
+          placeholder={
+            isDisabled
+              ? "Select a patient first…"
+              : "Patient presents with complaints of increased thirst and frequent urination..."
+          }
+          className="flex-1 w-full p-4 text-sm bg-white border border-zinc-200/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30 resize-none disabled:bg-zinc-50 disabled:text-zinc-400 disabled:cursor-not-allowed shadow-inner transition-all placeholder:text-zinc-400"
+        />
+
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-500">
+              {charCount} character{charCount !== 1 ? "s" : ""}
+            </span>
+            {hasContent && !isDisabled && !isLoading.analyze && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/50">
+                <CheckCircle2 className="w-3 h-3" />
+                AI ready
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={handleGenerateActions}
+            disabled={isDisabled || isLoading.analyze || !hasContent}
+            className="px-4 py-2.5 text-sm font-semibold text-white bg-[#7C2D3E] hover:bg-[#5A1F2D] rounded-full shadow-sm transition-all disabled:bg-zinc-300 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isLoading.analyze ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Generate Actions
+              </>
+            )}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 bg-red-50 border border-red-200/50 rounded-xl p-3 text-sm text-red-900">
+            {error}
+          </div>
+        )}
+
+        {isLoading.analyze && (
+          <div className="mt-3 bg-blue-50/50 border border-blue-200/50 rounded-xl p-3 flex items-center gap-2.5">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+            <p className="text-sm text-blue-900">
+              Analyzing transcript and generating draft orders…
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
