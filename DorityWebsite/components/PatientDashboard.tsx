@@ -82,20 +82,21 @@ export default function PatientDashboard({ patientId, open, onClose }: { patient
                 <p className="text-sm">{patient.gender}</p>
               </div>
               <div>
-                <p className="text-xs font-bold text-zinc-900">Contact</p>
-                <p className="text-sm">{patient.primaryPhone} {patient.email ? `• ${patient.email}` : ''}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-zinc-900">Address</p>
-                <p className="text-sm">{patient.address?.full}</p>
+                <p className="text-xs font-bold text-zinc-900">Telecom</p>
+                <div className="space-y-1">
+                  {patient.primaryPhone && <p className="text-sm">Phone: {patient.primaryPhone}</p>}
+                  {patient.mobilePhone && <p className="text-sm">Mobile: {patient.mobilePhone}</p>}
+                  {patient.email && <p className="text-sm">Email: {patient.email}</p>}
+                  {!patient.primaryPhone && !patient.mobilePhone && !patient.email && <p className="text-sm">No telecom info available</p>}
+                </div>
               </div>
             </div>
 
             {/* Right Column */}
             <div className="space-y-3">
               <div>
-                <p className="text-xs font-bold text-zinc-900">Emergency Contact</p>
-                <p className="text-sm">{patient.emergencyContacts?.[0]?.name} {patient.emergencyContacts?.[0]?.phone ? `• ${patient.emergencyContacts?.[0]?.phone}` : ''}</p>
+                <p className="text-xs font-bold text-zinc-900">Address</p>
+                <p className="text-sm">{patient.address?.full}</p>
               </div>
 
               {patient.mrn && (
