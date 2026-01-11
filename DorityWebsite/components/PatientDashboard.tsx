@@ -7,6 +7,11 @@ interface PatientContact {
   value?: string;
 }
 
+interface Identifier {
+  type?: string;
+  value?: string;
+}
+
 interface EnhancedPatientData {
   id: string;
   fullName: string;
@@ -17,10 +22,14 @@ interface EnhancedPatientData {
   email?: string;
   address?: { full?: string };
   emergencyContacts?: Array<{ name?: string; phone?: string }>;
+  mrn?: string;
+  otherIdentifiers?: Identifier[];
 }
 
 export default function PatientDashboard({ patientId, open, onClose }: { patientId?: string | null; open: boolean; onClose: () => void }) {
   const [patient, setPatient] = useState<EnhancedPatientData | null>(null);
+  const [conditions, setConditions] = useState<any[]>([]);
+  const [medications, setMedications] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +45,8 @@ export default function PatientDashboard({ patientId, open, onClose }: { patient
       })
       .then((data) => {
         setPatient(data.patient || null);
+        setConditions(data.conditions || []);
+        setMedications(data.medications || []);
       })
       .catch((e: any) => setError(e?.message || String(e)))
       .finally(() => setLoading(false));
@@ -55,35 +66,70 @@ export default function PatientDashboard({ patientId, open, onClose }: { patient
         {error && <p className="text-red-600">Error: {error}</p>}
 
         {patient && (
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-zinc-500">Name</p>
-              <p className="font-semibold">{patient.fullName}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left Column */}
+            <div className="space-y-3">
               <div>
-                <p className="text-xs text-zinc-500">DOB / Age</p>
-                <p>{patient.dateOfBirth} {patient.age ? `• ${patient.age} yrs` : ''}</p>
+                <p className="text-xs font-bold text-zinc-900">Name</p>
+                <p className="text-sm">{patient.fullName}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Gender</p>
-                <p>{patient.gender}</p>
+                <p className="text-xs font-bold text-zinc-900">DOB / Age</p>
+                <p className="text-sm">{patient.dateOfBirth} {patient.age ? `• ${patient.age} yrs` : ''}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-900">Gender</p>
+                <p className="text-sm">{patient.gender}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-900">Contact</p>
+                <p className="text-sm">{patient.primaryPhone} {patient.email ? `• ${patient.email}` : ''}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-900">Address</p>
+                <p className="text-sm">{patient.address?.full}</p>
               </div>
             </div>
 
-            <div>
-              <p className="text-xs text-zinc-500">Contact</p>
-              <p>{patient.primaryPhone} {patient.email ? `• ${patient.email}` : ''}</p>
-            </div>
+            {/* Right Column */}
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-bold text-zinc-900">Emergency Contact</p>
+                <p className="text-sm">{patient.emergencyContacts?.[0]?.name} {patient.emergencyContacts?.[0]?.phone ? `• ${patient.emergencyContacts?.[0]?.phone}` : ''}</p>
+              </div>
 
-            <div>
-              <p className="text-xs text-zinc-500">Address</p>
-              <p>{patient.address?.full}</p>
-            </div>
+              {patient.mrn && (
+                <div>
+                  <p className="text-xs font-bold text-zinc-900">Medical Record Number (MRN)</p>
+                  <p className="text-sm">{patient.mrn}</p>
+                </div>
+              )}
 
-            <div>
-              <p className="text-xs text-zinc-500">Emergency Contact</p>
-              <p>{patient.emergencyContacts?.[0]?.name} {patient.emergencyContacts?.[0]?.phone ? `• ${patient.emergencyContacts?.[0]?.phone}` : ''}</p>
+              {patient.otherIdentifiers && patient.otherIdentifiers.some((id: any) => id.type?.toLowerCase?.().includes('allerg')) && (
+                <div>
+                  <p className="text-xs font-bold text-zinc-900">Allergies</p>
+                  <div className="space-y-1">
+                    {patient.otherIdentifiers
+                      .filter((id: any) => id.type?.toLowerCase?.().includes('allerg'))
+                      .map((allergy: any, idx: number) => (
+                        <p key={idx} className="text-sm">{allergy.value || 'Unknown Allergy'}</p>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {patient.otherIdentifiers && patient.otherIdentifiers.some((id: any) => id.type?.toLowerCase?.().includes('injur')) && (
+                <div>
+                  <p className="text-xs font-bold text-zinc-900">Injuries</p>
+                  <div className="space-y-1">
+                    {patient.otherIdentifiers
+                      .filter((id: any) => id.type?.toLowerCase?.().includes('injur'))
+                      .map((injury: any, idx: number) => (
+                        <p key={idx} className="text-sm">{injury.value || 'No prior injuries'}</p>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

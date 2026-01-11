@@ -113,7 +113,7 @@ export function extractPatientData(patient: Patient): EnhancedPatientData {
   const otherIdentifiers = (patient.identifier || [])
     .filter(id => id.type?.coding?.[0]?.code !== 'MR')
     .map(id => ({
-      type: id.type?.coding?.[0]?.display || id.type?.text || 'Unknown',
+      type: id.system || id.type?.text || id.type?.coding?.[0]?.display || 'Unknown',
       value: id.value || ''
     }));
   
