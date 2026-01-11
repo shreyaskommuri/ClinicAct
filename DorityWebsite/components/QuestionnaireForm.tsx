@@ -123,10 +123,11 @@ function QuestionnaireItemRenderer({
 
   // Render based on item type
   const renderInput = () => {
-    // Check if field is empty and required for highlighting
+    // Check if field is empty, N/A, or placeholder values that need highlighting
     const isEmpty = !itemValue || itemValue === '' || itemValue === 'Select an option...' || itemValue === 'Select an option';
-    // HIGHLIGHT ALL EMPTY FIELDS, not just required ones
-    const needsAttention = isEmpty && isEditable;
+    const isNA = itemValue === 'N/A' || itemValue === 'n/a' || itemValue === 'Unknown' || itemValue === 'unknown';
+    // HIGHLIGHT ALL EMPTY FIELDS AND N/A VALUES, not just required ones
+    const needsAttention = (isEmpty || isNA) && isEditable;
     
     // Debug logging for dropdowns
     if (item.type === 'choice') {
@@ -308,7 +309,11 @@ function QuestionnaireItemRenderer({
             value={itemValue || ''}
             onChange={(e) => onChange(linkId, e.target.value)}
             disabled={!isEditable}
-            className="w-full text-xs text-zinc-600 border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30 disabled:bg-zinc-50 disabled:text-zinc-500"
+            className={`w-full text-xs text-zinc-600 border rounded px-2 py-1.5 focus:outline-none focus:ring-2 disabled:bg-zinc-50 disabled:text-zinc-500 ${
+              needsAttention 
+                ? 'border-amber-300 bg-amber-50/30 focus:ring-amber-500/20 focus:border-amber-500/30' 
+                : 'border-zinc-200 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30'
+            }`}
           />
         );
 
@@ -321,8 +326,12 @@ function QuestionnaireItemRenderer({
             value={itemValue || ''}
             onChange={(e) => onChange(linkId, item.type === 'decimal' ? parseFloat(e.target.value) : parseInt(e.target.value))}
             disabled={!isEditable}
-            className="w-full text-xs text-zinc-600 border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30 disabled:bg-zinc-50 disabled:text-zinc-500"
-            placeholder={item.text}
+            className={`w-full text-xs text-zinc-600 border rounded px-2 py-1.5 focus:outline-none focus:ring-2 disabled:bg-zinc-50 disabled:text-zinc-500 ${
+              needsAttention 
+                ? 'border-amber-300 bg-amber-50/30 focus:ring-amber-500/20 focus:border-amber-500/30' 
+                : 'border-zinc-200 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30'
+            }`}
+            placeholder={needsAttention ? 'Required field - please complete' : item.text}
           />
         );
 
@@ -342,8 +351,12 @@ function QuestionnaireItemRenderer({
             value={itemValue || ''}
             onChange={(e) => onChange(linkId, e.target.value)}
             disabled={!isEditable}
-            className="w-full text-xs text-zinc-600 border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30 disabled:bg-zinc-50 disabled:text-zinc-500"
-            placeholder={item.text}
+            className={`w-full text-xs text-zinc-600 border rounded px-2 py-1.5 focus:outline-none focus:ring-2 disabled:bg-zinc-50 disabled:text-zinc-500 ${
+              needsAttention 
+                ? 'border-amber-300 bg-amber-50/30 focus:ring-amber-500/20 focus:border-amber-500/30' 
+                : 'border-zinc-200 focus:ring-[#7C2D3E]/20 focus:border-[#7C2D3E]/30'
+            }`}
+            placeholder={needsAttention ? 'Required field - please complete' : item.text}
           />
         );
     }
