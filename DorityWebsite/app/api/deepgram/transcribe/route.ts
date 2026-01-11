@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const audio = formData.get('audio') as Blob;
+    const patientName = formData.get('patientName') as string || 'Patient';
+    const patientId = formData.get('patientId') as string;
 
     if (!audio) {
       return NextResponse.json(
@@ -56,12 +58,96 @@ export async function POST(request: NextRequest) {
     const transcript = result.results?.channels[0]?.alternatives[0]?.transcript || '';
     const utterances = result.results?.utterances || [];
 
-    // Format with speaker labels
+    // Intelligent speaker labeling using context and AI
     let formattedTranscript = '';
-    if (utterances && utterances.length > 0) {
+    
+    if (utterances && utterances.length > 0 && anthropicKey) {
+      // First, get raw transcript with speaker numbers
+      const rawSpeakerTranscript = utterances
+        .map((utterance) => `Speaker ${utterance.speaker}: ${utterance.transcript}`)
+        .join('\n\n');
+      
+      console.log('[Deepgram] Raw transcript with speaker IDs:', rawSpeakerTranscript.substring(0, 200));
+      
+      try {
+        // Use AI to intelligently identify speakers based on context
+        const anthropic = new Anthropic({ apiKey: anthropicKey });
+        const speakerMessage = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 4096,
+          messages: [
+            {
+              role: 'user',
+              content: `You are analyzing a medical conversation between a doctor and a patient named "${patientName}".
+
+Based on context, tone, and content, identify who is speaking in each line.
+
+IMPORTANT: The patient will often introduce themselves by name or describe their symptoms. Look for these clues:
+- If someone says "My name is ${patientName}" or introduces themselves - that's ${patientName}
+- If someone describes symptoms like "My head hurts", "I'm feeling pain" - that's likely ${patientName}
+- If someone asks medical questions like "How do you feel?", "What brings you in?" - that's the Doctor
+- If someone gives medical advice or diagnosis - that's the Doctor
+
+Conversation:
+${rawSpeakerTranscript}
+
+Reformat this transcript, replacing "Speaker 0" and "Speaker 1" with either "Doctor" or "${patientName}" based on who you determine is speaking. Output ONLY the reformatted transcript with no explanations, commentary, or additional text.`,
+            },
+          ],
+        });
+
+        const content = speakerMessage.content[0];
+        if (content.type === 'text') {
+          formattedTranscript = content.text.trim();
+          console.log('[Deepgram] AI-formatted transcript:', formattedTranscript.substring(0, 200));
+        } else {
+          console.log('[Deepgram] AI returned non-text content, using fallback');
+          // Fallback: Use simple heuristic
+          formattedTranscript = utterances
+            .map((utterance) => {
+              // Simple heuristic: if text contains patient name or symptom words, it's the patient
+              const text = utterance.transcript.toLowerCase();
+              const isPatient = text.includes(patientName.toLowerCase()) || 
+                                text.includes('my ') || 
+                                text.includes('i ') ||
+                                text.includes('hurt') ||
+                                text.includes('pain') ||
+                                text.includes('feel');
+              const speaker = isPatient ? patientName : 'Doctor';
+              return `${speaker}: ${utterance.transcript}`;
+            })
+            .join('\n\n');
+        }
+      } catch (aiError) {
+        console.error('[Deepgram] AI speaker identification error:', aiError);
+        // Fallback: Use simple heuristic
+        formattedTranscript = utterances
+          .map((utterance) => {
+            // Simple heuristic: if text contains patient name or symptom words, it's the patient
+            const text = utterance.transcript.toLowerCase();
+            const isPatient = text.includes(patientName.toLowerCase()) || 
+                              text.includes('my ') || 
+                              text.includes('i ') ||
+                              text.includes('hurt') ||
+                              text.includes('pain') ||
+                              text.includes('feel');
+            const speaker = isPatient ? patientName : 'Doctor';
+            return `${speaker}: ${utterance.transcript}`;
+          })
+          .join('\n\n');
+      }
+    } else if (utterances && utterances.length > 0) {
+      // Simple labeling without AI - use heuristic
       formattedTranscript = utterances
         .map((utterance) => {
-          const speaker = utterance.speaker === 0 ? 'Doctor' : 'Patient';
+          const text = utterance.transcript.toLowerCase();
+          const isPatient = text.includes(patientName.toLowerCase()) || 
+                            text.includes('my ') || 
+                            text.includes('i ') ||
+                            text.includes('hurt') ||
+                            text.includes('pain') ||
+                            text.includes('feel');
+          const speaker = isPatient ? patientName : 'Doctor';
           return `${speaker}: ${utterance.transcript}`;
         })
         .join('\n\n');
@@ -126,7 +212,7 @@ Only include fields where information is clearly stated. Return valid JSON only.
       medicalSummary,
       metadata: {
         duration: result.metadata?.duration,
-        speakers: utterances?.length > 0 ? Math.max(...utterances.map(u => u.speaker)) + 1 : 0,
+        speakers: utterances?.length > 0 ? Math.max(...utterances.map(u => u.speaker ?? 0)) + 1 : 0,
         words: result.results?.channels[0]?.alternatives[0]?.words?.length || 0,
         confidence: result.results?.channels[0]?.alternatives[0]?.confidence || 0,
       },

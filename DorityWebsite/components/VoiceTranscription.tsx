@@ -20,9 +20,11 @@ interface MedicalSummary {
 interface VoiceTranscriptionProps {
   onTranscriptFetched: (transcript: string, metadata?: any) => void;
   disabled?: boolean;
+  patientName?: string;
+  patientId?: string;
 }
 
-export default function VoiceTranscription({ onTranscriptFetched, disabled }: VoiceTranscriptionProps) {
+export default function VoiceTranscription({ onTranscriptFetched, disabled, patientName, patientId }: VoiceTranscriptionProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +105,10 @@ export default function VoiceTranscription({ onTranscriptFetched, disabled }: Vo
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
+      
+      // Add patient information for intelligent speaker labeling
+      if (patientName) formData.append('patientName', patientName);
+      if (patientId) formData.append('patientId', patientId);
       
       // Use Deepgram API with medical AI summary
       const response = await fetch('/api/deepgram/transcribe', {

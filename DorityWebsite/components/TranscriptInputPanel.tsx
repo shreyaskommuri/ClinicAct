@@ -87,6 +87,8 @@ export default function TranscriptInputPanel() {
           <VoiceTranscription 
             onTranscriptFetched={handleTranscriptFetched}
             disabled={isDisabled || isLoading.analyze}
+            patientName={patient?.name}
+            patientId={patient?.id}
           />
         </div>
       )}
