@@ -104,10 +104,17 @@ function extractFieldMappings(resource: any, patientData?: any): Record<string, 
   if (resource.resourceType === 'MedicationRequest') {
     const mr = resource as MedicationRequest;
     
-    // Medication name
-    if (mr.medicationCodeableConcept?.text) {
-      mappings['medication'] = mr.medicationCodeableConcept.text;
-      mappings['medication_name'] = mr.medicationCodeableConcept.text;
+    // Medication name - try multiple sources
+    const medicationName = 
+      mr.medicationCodeableConcept?.text ||
+      mr.medicationCodeableConcept?.coding?.[0]?.display ||
+      mr.medicationCodeableConcept?.coding?.[0]?.code;
+    
+    if (medicationName) {
+      mappings['medication'] = medicationName;
+      mappings['medication_name'] = medicationName;
+      mappings['drug'] = medicationName;
+      mappings['drug_name'] = medicationName;
     }
     
     // Dosage
@@ -156,16 +163,31 @@ function findMatchingValue(
     return formatValueForType(mappings[linkId], item.type);
   }
 
+  // Check linkId for name patterns (more robust matching)
+  const linkIdLower = linkId.toLowerCase();
+  if ((linkIdLower.includes('name') || linkIdLower.includes('patientname') || 
+       linkIdLower.includes('firstname') || linkIdLower.includes('lastname') || 
+       linkIdLower === 'name' || linkIdLower === 'patient') && mappings['patient_name']) {
+    return formatValueForType(mappings['patient_name'], item.type);
+  }
+
+  // Check linkId for medication patterns (more robust matching)
+  if ((linkIdLower.includes('medication') || linkIdLower.includes('medicationname') ||
+       linkIdLower.includes('drug') || linkIdLower.includes('drugname') ||
+       linkIdLower === 'medication' || linkIdLower === 'drug') && mappings['medication']) {
+    return formatValueForType(mappings['medication'], item.type);
+  }
+
   // Match based on question text keywords
   const keywords = [
-    { patterns: ['patient name', 'name of patient', 'full name'], keys: ['patient_name'] },
+    { patterns: ['patient name', 'name of patient', 'full name', 'name', 'patient\'s name'], keys: ['patient_name'] },
     { patterns: ['date of birth', 'dob', 'birth date', 'birthdate'], keys: ['date_of_birth'] },
     { patterns: ['medical record', 'mrn', 'patient id', 'record number'], keys: ['mrn', 'patient_id'] },
     { patterns: ['test name', 'exam type', 'study', 'procedure', 'imaging', 'scan type'], keys: ['test_name', 'study_name', 'exam_type'] },
     { patterns: ['priority', 'urgency'], keys: ['priority'] },
     { patterns: ['body site', 'region', 'area', 'location', 'anatomical'], keys: ['body_site', 'region', 'area'] },
     { patterns: ['indication', 'reason', 'clinical reason', 'why', 'purpose'], keys: ['indication', 'reason', 'clinical_indication'] },
-    { patterns: ['medication', 'drug', 'prescription'], keys: ['medication', 'medication_name'] },
+    { patterns: ['medication', 'drug', 'prescription', 'medication name', 'drug name', 'what medication', 'which medication'], keys: ['medication', 'medication_name', 'drug', 'drug_name'] },
     { patterns: ['dosage', 'dose', 'amount'], keys: ['dosage', 'dose'] },
     { patterns: ['route', 'method of administration'], keys: ['route'] },
     { patterns: ['frequency', 'how often'], keys: ['frequency'] },

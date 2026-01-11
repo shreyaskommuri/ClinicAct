@@ -535,6 +535,45 @@ export default function QuestionnaireForm({
         }
       }
       
+      // CRITICAL: Always fill patient name from patientData if available and not already filled
+      if (patientData?.name) {
+        // Find all name-related fields in the questionnaire and fill them
+        const findNameFields = (items: any[]): string[] => {
+          const nameFields: string[] = [];
+          for (const item of items) {
+            if (item.linkId) {
+              const linkIdLower = item.linkId.toLowerCase();
+              const textLower = (item.text || '').toLowerCase();
+              if (linkIdLower.includes('name') || 
+                  linkIdLower.includes('patientname') ||
+                  linkIdLower === 'name' ||
+                  linkIdLower === 'patient' ||
+                  textLower.includes('patient name') ||
+                  textLower.includes('name of patient') ||
+                  textLower.includes('full name')) {
+                nameFields.push(item.linkId);
+              }
+            }
+            if (item.item && Array.isArray(item.item)) {
+              nameFields.push(...findNameFields(item.item));
+            }
+          }
+          return nameFields;
+        };
+        
+        const nameFields = findNameFields(questionnaire.item || []);
+        for (const fieldId of nameFields) {
+          if (!extractedResponses[fieldId] || 
+              extractedResponses[fieldId] === 'N/A' || 
+              extractedResponses[fieldId] === 'Unknown') {
+            // Normalize name: replace multiple spaces with single space and trim
+            const normalizedName = patientData.name.replace(/\s+/g, ' ').trim();
+            console.log(`[QuestionnaireForm] 🔧 Filling patient name field "${fieldId}" with: "${normalizedName}"`);
+            extractedResponses[fieldId] = normalizedName;
+          }
+        }
+      }
+      
       setResponses(extractedResponses);
       onResponseChange?.(extractedResponses);
       setHasAutofilledOnce(true);
@@ -548,6 +587,93 @@ export default function QuestionnaireForm({
         questionnaire,
         patientData
       );
+      
+      // CRITICAL: Always fill patient name from patientData if available and not already filled
+      if (patientData?.name) {
+        const findNameFields = (items: any[]): string[] => {
+          const nameFields: string[] = [];
+          for (const item of items) {
+            if (item.linkId) {
+              const linkIdLower = item.linkId.toLowerCase();
+              const textLower = (item.text || '').toLowerCase();
+              if (linkIdLower.includes('name') || 
+                  linkIdLower.includes('patientname') ||
+                  linkIdLower === 'name' ||
+                  linkIdLower === 'patient' ||
+                  textLower.includes('patient name') ||
+                  textLower.includes('name of patient') ||
+                  textLower.includes('full name')) {
+                nameFields.push(item.linkId);
+              }
+            }
+            if (item.item && Array.isArray(item.item)) {
+              nameFields.push(...findNameFields(item.item));
+            }
+          }
+          return nameFields;
+        };
+        
+        const nameFields = findNameFields(questionnaire.item || []);
+        for (const fieldId of nameFields) {
+          if (!autofilledResponses[fieldId] || 
+              autofilledResponses[fieldId] === 'N/A' || 
+              autofilledResponses[fieldId] === 'Unknown') {
+            // Normalize name: replace multiple spaces with single space and trim
+            const normalizedName = patientData.name.replace(/\s+/g, ' ').trim();
+            console.log(`[QuestionnaireForm] 🔧 Filling patient name field "${fieldId}" with: "${normalizedName}"`);
+            autofilledResponses[fieldId] = normalizedName;
+          }
+        }
+      }
+      
+      // CRITICAL: Always fill medication from MedicationRequest if available and not already filled
+      if (fhirResource?.resourceType === 'MedicationRequest' && fhirResource?.medicationCodeableConcept) {
+        const medicationName = 
+          fhirResource.medicationCodeableConcept?.text ||
+          fhirResource.medicationCodeableConcept?.coding?.[0]?.display ||
+          fhirResource.medicationCodeableConcept?.coding?.[0]?.code;
+        
+        if (medicationName) {
+          const findMedicationFields = (items: any[]): string[] => {
+            const medicationFields: string[] = [];
+            for (const item of items) {
+              if (item.linkId) {
+                const linkIdLower = item.linkId.toLowerCase();
+                const textLower = (item.text || '').toLowerCase();
+                if (linkIdLower.includes('medication') || 
+                    linkIdLower.includes('medicationname') ||
+                    linkIdLower.includes('drug') || 
+                    linkIdLower.includes('drugname') ||
+                    linkIdLower === 'medication' ||
+                    linkIdLower === 'drug' ||
+                    textLower.includes('medication name') ||
+                    textLower.includes('drug name') ||
+                    textLower.includes('what medication') ||
+                    textLower.includes('which medication') ||
+                    textLower.includes('prescription')) {
+                  medicationFields.push(item.linkId);
+                }
+              }
+              if (item.item && Array.isArray(item.item)) {
+                medicationFields.push(...findMedicationFields(item.item));
+              }
+            }
+            return medicationFields;
+          };
+          
+          const medicationFields = findMedicationFields(questionnaire.item || []);
+          for (const fieldId of medicationFields) {
+            if (!autofilledResponses[fieldId] || 
+                autofilledResponses[fieldId] === 'N/A' || 
+                autofilledResponses[fieldId] === 'Unknown' ||
+                autofilledResponses[fieldId] === '') {
+              console.log(`[QuestionnaireForm] 🔧 Filling medication field "${fieldId}" with: "${medicationName}"`);
+              autofilledResponses[fieldId] = medicationName;
+            }
+          }
+        }
+      }
+      
       console.log('[QuestionnaireForm] Autofilled responses:', autofilledResponses);
       setResponses(autofilledResponses);
       onResponseChange?.(autofilledResponses);
